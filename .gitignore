@@ -1,0 +1,32 @@
+# MacOS
+Thumbs.db
+.DS_Store
+
+# Project
+.gradle
+build/
+target/
+out/
+.idea
+*.iml
+*.ipr
+*.iws
+.project
+.settings
+.classpath
+.factorypath
+
+# Misc
+*.key
+*.log
+
+# Locust
+__pycache__/
+locust-*.tgz
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+# Redis dumps
+dump.rdb
+

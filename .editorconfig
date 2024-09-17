@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.bat]
+end_of_line = crlf
+
+[*.{kt,kts}]
+ij_kotlin_allow_trailing_comma = true
+ktlint_disabled_rules=argument-list-wrapping,multiline-expression-wrapping,multiline-if-else,indent,annotation
+
+[*.{yml,yaml}]
+indent_size = 2
+
+# TODO: Specify `indent_size` for generic and domain specific xml files (eg. pom.xml, app.iml).
+# TODO: Consider specifying `max_line_length` for code files (eg. Application.kt).
