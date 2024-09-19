@@ -1,4 +1,6 @@
 import com.vanniktech.maven.publish.SonatypeHost
+import groovy.util.Node
+import groovy.util.NodeList
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
@@ -41,7 +43,7 @@ val nettyVersion: String by project
 val slf4jVersion: String by project
 
 dependencies {
-    runtimeOnly("com.pinterest.ktlint:ktlint-core:$ktlintVersion")
+    compileOnly("com.pinterest.ktlint:ktlint-core:$ktlintVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:$kotlinxCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:$kotlinxCoroutinesVersion")
     implementation("io.github.oshai:kotlin-logging-jvm:$kotlinLoggingJvmVersion")
@@ -89,7 +91,7 @@ mavenPublishing {
                 id.set("travispeloton")
                 name.set("Travis Haagen")
                 email.set("travis.haagen@onepeloton.com")
-                url.set("https://github.com/travispeloton/")
+                url.set("https://travishaagen.github.io/")
                 organization.set("Peloton Interactive, Inc.")
                 organizationUrl.set("https://www.onepeloton.com/")
             }
@@ -98,6 +100,18 @@ mavenPublishing {
             url.set("https://github.com/pelotoncycle/locust4k/")
             connection.set("scm:git:git://github.com/pelotoncycle/locust4k.git")
             developerConnection.set("scm:git:ssh://git@github.com/pelotoncycle/locust4k.git")
+        }
+        withXml {
+            val dependencies = (asNode().get("dependencies") as NodeList).first() as Node
+            val dependencyList = dependencies.get("dependency") as NodeList
+            dependencyList.forEach {
+                val dependency = it as Node
+                val artifactId = (dependency.get("artifactId") as NodeList).last() as Node
+                // remove logback from the POM, which makes it optional
+                if (artifactId.text().contains("logback")) {
+                    dependency.parent().remove(dependency)
+                }
+            }
         }
     }
 }
@@ -163,7 +177,6 @@ tasks.register("runExample") {
     description = "Run an example app by name."
     val appName = project.providers.gradleProperty("name")
     if (appName.isPresent) {
-        dependsOn(tasks.compileKotlin)
         javaexec {
             mainClass.set("com.onepeloton.locust4k.examples.${appName.get()}")
             classpath = sourceSets["main"].runtimeClasspath
