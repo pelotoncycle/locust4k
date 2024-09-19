@@ -88,7 +88,7 @@ mavenPublishing {
         }
         developers {
             developer {
-                id.set("travispeloton")
+                id.set("Travis Haagen <travis.haagen@onepeloton.com>")
                 name.set("Travis Haagen")
                 email.set("travis.haagen@onepeloton.com")
                 url.set("https://travishaagen.github.io/")
