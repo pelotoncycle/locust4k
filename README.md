@@ -1,4 +1,4 @@
-# locust4k
+# Locust4k
 
 [Locust](https://locust.io/) Worker client for Kotlin. Inspired by [locust4j](https://github.com/myzhan/locust4j).
 

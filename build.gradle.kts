@@ -74,8 +74,7 @@ mavenPublishing {
     signAllPublications()
     coordinates(groupId = group as String, artifactId = rootProject.name, version = version as String)
     pom {
-        name.set(rootProject.name)
-        description.set(description)
+        name.set("Locust4k")
         inceptionYear.set("2024")
         url.set("https://github.com/pelotoncycle/locust4k/")
         licenses {
@@ -164,6 +163,7 @@ tasks.register("runExample") {
     description = "Run an example app by name."
     val appName = project.providers.gradleProperty("name")
     if (appName.isPresent) {
+        dependsOn(tasks.compileKotlin)
         javaexec {
             mainClass.set("com.onepeloton.locust4k.examples.${appName.get()}")
             classpath = sourceSets["main"].runtimeClasspath
