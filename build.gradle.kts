@@ -160,9 +160,13 @@ tasks.jar {
     }
 }
 
-tasks.register("exampleAppRun") {
-    javaexec {
-        mainClass.set("com.onepeloton.locust4k.examples.ExampleApp")
-        classpath = sourceSets["main"].runtimeClasspath
+tasks.register("runExample") {
+    description = "Run an example app by name."
+    val appName = project.providers.gradleProperty("name")
+    if (appName.isPresent) {
+        javaexec {
+            mainClass.set("com.onepeloton.locust4k.examples.${appName.get()}")
+            classpath = sourceSets["main"].runtimeClasspath
+        }
     }
 }

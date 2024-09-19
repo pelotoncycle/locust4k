@@ -21,7 +21,7 @@ locust -f locust-master.py --master --master-bind-host=127.0.0.1 --master-bind-p
 Run the example application locally:
 
 ```shell
-./gradlew exampleAppRun
+./gradlew runExample -Pname=ExampleApp
 ```
 
 Visit [Locust UI](http://localhost:8089/) to start the load test.
