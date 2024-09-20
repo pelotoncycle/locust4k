@@ -4,7 +4,7 @@ import java.security.MessageDigest
 import java.util.HexFormat
 
 /**
- * Based on `com.github.myzhan.locust4j.stats.StatsError`.
+ * Based on [com.github.myzhan.locust4j.stats.StatsError](https://github.com/myzhan/locust4j/blob/2.2.4/src/main/java/com/github/myzhan/locust4j/stats/StatsError.java).
  */
 class StatsError(
     val name: String,

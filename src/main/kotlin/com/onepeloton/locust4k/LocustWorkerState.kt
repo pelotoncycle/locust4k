@@ -8,12 +8,4 @@ enum class LocustWorkerState(val lowerCase: String) {
     RUNNING("running"),
     STOPPED("stopped"),
     SHUTDOWN("shutdown");
-
-    companion object {
-        private val lowerCaseStateMap: Map<String, LocustWorkerState> =
-            LocustWorkerState.entries.associateBy { it.lowerCase }
-
-        fun valueOfLowerCase(state: String): LocustWorkerState =
-            lowerCaseStateMap[state] ?: throw IllegalArgumentException("Unknown state=$state")
-    }
 }

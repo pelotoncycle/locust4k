@@ -10,7 +10,7 @@ Inspired by [locust4j](https://github.com/myzhan/locust4j).
 Import as a Maven or Gradle dependency:
 
 ```text
-implementation("com.onepeloton:locust4k:1.0.0")
+implementation("com.onepeloton.locust4k:locust4k:1.0.0")
 ```
 
 Create one or more
@@ -49,6 +49,9 @@ Start Locust master from the root of this project:
 ```shell
 locust -f locust-master.py --master --master-bind-host=127.0.0.1 --master-bind-port=5557
 ```
+
+Note [locust-master.py](https://github.com/pelotoncycle/locust4k/blob/locust-master.py) above, which is essentially
+a no-op `locustfile` and required to start Locust.
 
 In another terminal, run the example Worker application:
 

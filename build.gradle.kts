@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.KotlinJvm
 import com.vanniktech.maven.publish.SonatypeHost
 import groovy.util.Node
 import groovy.util.NodeList
@@ -7,6 +9,7 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 plugins {
     id("com.vanniktech.maven.publish")
     id("me.qoomon.git-versioning")
+    id("org.jetbrains.dokka")
     id("org.jlleitschuh.gradle.ktlint")
     kotlin("jvm")
     `java-library`
@@ -61,7 +64,7 @@ dependencies {
     testImplementation("org.mockito.kotlin:mockito-kotlin:$mockitoKotlinVersion")
 }
 
-group = "com.onepeloton"
+group = "com.onepeloton.locust4k"
 description = "Locust Worker Client for Kotlin"
 version = "0.0.0-SNAPSHOT"
 gitVersioning.apply {
@@ -72,6 +75,12 @@ gitVersioning.apply {
 }
 
 mavenPublishing {
+    configure(
+        KotlinJvm(
+            javadocJar = JavadocJar.Dokka("dokkaHtml"),
+            sourcesJar = true,
+        )
+    )
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
     coordinates(groupId = group as String, artifactId = rootProject.name, version = version as String)

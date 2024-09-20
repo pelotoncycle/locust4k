@@ -6,7 +6,7 @@ import org.msgpack.core.MessagePacker
 import java.io.IOException
 
 /**
- * Based on `com.github.myzhan.locust4j.message.Visitor`.
+ * Based on [com.github.myzhan.locust4j.message.Visitor](https://github.com/myzhan/locust4j/blob/2.2.4/src/main/java/com/github/myzhan/locust4j/message/Visitor.java).
  */
 class Visitor(private val packer: MessagePacker) {
     @Throws(IOException::class)

@@ -7,7 +7,7 @@ import kotlin.math.floor
 import kotlin.math.pow
 
 /**
- * Based on `com.github.myzhan.locust4j.stats.StatsEntry`.
+ * Based on [com.github.myzhan.locust4j.stats.StatsEntry](https://github.com/myzhan/locust4j/blob/2.2.4/src/main/java/com/github/myzhan/locust4j/stats/StatsEntry.java).
  */
 class StatsEntry(
     val name: String,
@@ -69,12 +69,12 @@ class StatsEntry(
         totalContentLength += contentLength
     }
 
-    fun logTimeOfRequest(now: Long) {
+    private fun logTimeOfRequest(now: Long) {
         numReqsPerSec.addToValue(now, 1)
         lastRequestTimestamp = now
     }
 
-    fun logResponseTime(responseTime: Long) {
+    private fun logResponseTime(responseTime: Long) {
         totalResponseTime += responseTime
         if (minResponseTime == 0L) {
             minResponseTime = responseTime

@@ -2,6 +2,11 @@ package com.onepeloton.locust4k
 
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Locust Worker test scenario interface. Each Locust "user" results in one instance of this class being created on each
+ * Worker node. Classes implementing this interface must handle their own thread safety (e.g., class variables or
+ * objects shared between instances).
+ */
 interface LocustTask {
     /**
      * Task name.
@@ -32,7 +37,7 @@ interface LocustTask {
 
     /**
      * Builds an instance of this task, where each "Locust user" is a distinct instance. Instances must be
-     * thread-safe (e.g., class variables or objects shared between instances).
+     * thread-safe.
      */
     fun instance(): LocustTask
 }

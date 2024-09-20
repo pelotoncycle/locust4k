@@ -7,7 +7,7 @@ import org.msgpack.value.ValueType
 import java.io.IOException
 
 /**
- * Based on `com.github.myzhan.locust4j.message.Message`.
+ * Based on [com.github.myzhan.locust4j.message.Message](https://github.com/myzhan/locust4j/blob/2.2.4/src/main/java/com/github/myzhan/locust4j/message/Message.java).
  */
 class Message {
     val type: LocustMessageType
