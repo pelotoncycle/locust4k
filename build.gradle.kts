@@ -125,24 +125,9 @@ mavenPublishing {
     }
 }
 
-tasks {
-    compileKotlin {
-        kotlinOptions {
-            jvmTarget = "17"
-            freeCompilerArgs =
-                listOf(
-                    "-opt-in=kotlin.RequiresOptIn",
-                )
-        }
-    }
-    compileTestKotlin {
-        kotlinOptions {
-            jvmTarget = "17"
-            freeCompilerArgs =
-                listOf(
-                    "-opt-in=kotlin.RequiresOptIn",
-                )
-        }
+tasks.named("compileKotlin", org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask::class.java) {
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
     }
 }
 
