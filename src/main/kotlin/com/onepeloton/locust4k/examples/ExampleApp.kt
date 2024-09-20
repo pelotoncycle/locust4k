@@ -2,7 +2,6 @@
 
 package com.onepeloton.locust4k.examples
 
-import com.onepeloton.locust4k.EXECUTE
 import com.onepeloton.locust4k.LocustTask
 import com.onepeloton.locust4k.LocustTaskReporter
 import com.onepeloton.locust4k.LocustWorker
@@ -40,6 +39,7 @@ fun main() {
 
 private class ExampleLocustTask : LocustTask {
     private val logger = KotlinLogging.logger {}
+
     override fun name(): String = "exampleTask"
 
     override suspend fun beforeExecuteLoop(context: CoroutineContext) {
@@ -50,7 +50,10 @@ private class ExampleLocustTask : LocustTask {
         logger.info { "onStop invoked" }
     }
 
-    override suspend fun execute(reporter: LocustTaskReporter, context: CoroutineContext) {
+    override suspend fun execute(
+        reporter: LocustTaskReporter,
+        context: CoroutineContext,
+    ) {
         logger.trace { "execute invoked" }
 
         // simulate HTTP response latency
@@ -60,9 +63,9 @@ private class ExampleLocustTask : LocustTask {
         // 5% chance of an error occurring
         if (Random.nextInt(100) > 5) {
             val contentLength = Random.nextLong(5_000, 10_000)
-            reporter.success(EXECUTE, name(), responseTimeMillis, contentLength)
+            reporter.success(responseTimeMillis, contentLength, name())
         } else {
-            reporter.failure(EXECUTE, name(), responseTimeMillis, "exampleError")
+            reporter.failure(responseTimeMillis, "exampleError", name())
         }
     }
 

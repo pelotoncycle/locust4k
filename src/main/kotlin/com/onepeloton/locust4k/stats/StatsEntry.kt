@@ -31,18 +31,21 @@ class StatsEntry(
         private const val REQS_PER_SEC_INITIAL_CAPACITY = 4
         private const val RESPONSE_TIMES_INITIAL_CAPACITY = 32
 
-        fun currentTimeInSeconds(): Long =
-            System.currentTimeMillis() / 1000
+        fun currentTimeInSeconds(): Long = System.currentTimeMillis() / 1000
 
-        fun round(value: Long, places: Int): Int {
+        fun round(
+            value: Long,
+            places: Int,
+        ): Int {
             val pow: Double = 10.0.pow(places.toDouble())
             val digit = pow * value
             val div = digit % 1
-            val round = if (div > 0.5f) {
-                ceil(digit)
-            } else {
-                floor(digit)
-            }
+            val round =
+                if (div > 0.5f) {
+                    ceil(digit)
+                } else {
+                    floor(digit)
+                }
             val result = round / pow
             return result.toInt()
         }
@@ -62,7 +65,11 @@ class StatsEntry(
         responseTimes = IntIntHashMap(RESPONSE_TIMES_INITIAL_CAPACITY)
     }
 
-    fun log(now: Long, responseTime: Long, contentLength: Long) {
+    fun log(
+        now: Long,
+        responseTime: Long,
+        contentLength: Long,
+    ) {
         ++numRequests
         logTimeOfRequest(now)
         logResponseTime(responseTime)
@@ -85,17 +92,18 @@ class StatsEntry(
         if (responseTime > maxResponseTime) {
             maxResponseTime = responseTime
         }
-        val roundedResponseTime = if (responseTime < 100) {
-            responseTime.toInt()
-        } else if (responseTime < 1000) {
-            round(responseTime, -1)
-        } else if (responseTime < 10000) {
-            round(responseTime, -2)
-        } else if (responseTime > Integer.MAX_VALUE) {
-            round(Integer.MAX_VALUE.toLong(), -3)
-        } else {
-            round(responseTime, -3)
-        }
+        val roundedResponseTime =
+            if (responseTime < 100) {
+                responseTime.toInt()
+            } else if (responseTime < 1000) {
+                round(responseTime, -1)
+            } else if (responseTime < 10000) {
+                round(responseTime, -2)
+            } else if (responseTime > Integer.MAX_VALUE) {
+                round(Integer.MAX_VALUE.toLong(), -3)
+            } else {
+                round(responseTime, -3)
+            }
         responseTimes.addToValue(roundedResponseTime, 1)
     }
 
@@ -104,22 +112,23 @@ class StatsEntry(
         numFailPerSec.addToValue(now, 1)
     }
 
-    fun toMap(): Map<String, Any> = mapOf(
-        "name" to name,
-        "method" to method,
-        "last_request_timestamp" to lastRequestTimestamp,
-        "start_time" to startTime,
-        "num_requests" to numRequests,
-        "num_none_requests" to 0,
-        "num_failures" to numFailures,
-        "total_response_time" to totalResponseTime,
-        "max_response_time" to maxResponseTime,
-        "min_response_time" to minResponseTime,
-        "total_content_length" to totalContentLength,
-        "response_times" to responseTimes,
-        "num_reqs_per_sec" to numReqsPerSec,
-        "num_fail_per_sec" to numFailPerSec,
-    )
+    fun toMap(): Map<String, Any> =
+        mapOf(
+            "name" to name,
+            "method" to method,
+            "last_request_timestamp" to lastRequestTimestamp,
+            "start_time" to startTime,
+            "num_requests" to numRequests,
+            "num_none_requests" to 0,
+            "num_failures" to numFailures,
+            "total_response_time" to totalResponseTime,
+            "max_response_time" to maxResponseTime,
+            "min_response_time" to minResponseTime,
+            "total_content_length" to totalContentLength,
+            "response_times" to responseTimes,
+            "num_reqs_per_sec" to numReqsPerSec,
+            "num_fail_per_sec" to numFailPerSec,
+        )
 
     fun getStrippedReport(): Map<String, Any> {
         val report = toMap()

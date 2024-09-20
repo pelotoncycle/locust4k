@@ -19,6 +19,7 @@ import com.onepeloton.locust4k.messages.LocustMessageType.SPAWN
 import com.onepeloton.locust4k.messages.LocustMessageType.SPAWNING_COMPLETE
 import com.onepeloton.locust4k.messages.LocustMessageType.STOP
 import com.onepeloton.locust4k.messages.Message
+import com.onepeloton.locust4k.stats.LocustStats
 import com.sun.management.OperatingSystemMXBean
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
@@ -47,14 +48,33 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 
+/**
+ * Locust Worker that orchestrates communication with the Master node. At a minimum, provide the [host] and [port]
+ * of the Locust Master node, and one or more [LocustTask] implementations to [tasks]. Invoke [startup] to establish
+ * the connection to Locust Master and [shutdown] when the application is closing.
+ *
+ * If you provide a [uniqueNodeId] it will appear in the Locust UI and Master logs. If you're using Kubernetes, you
+ * would typically use the `HOSTNAME` environment variable. A random UUID will be generated if not provided.
+ *
+ * Other arguments provide fine-grained configuration of resources and timeouts.
+ *
+ * - [taskThreads] is the thread pool size for the coroutine context used to run [LocustTask]s
+ * - [messageProducerBufferSize] is the number of outbound messages that can be buffered (to Locust Master)
+ * - [messageConsumerBufferSize] is the number of inbound messages that can be buffered (from Locust Master)
+ * - [successOrFailureBufferSize] is the number of [LocustTaskReporter] success or failure events that can be buffered
+ * - [ackTimeoutMillis] timeout for receiving an ACK message from Locust Master after connecting
+ * - [heartbeatMillis] frequency of outbound heartbeat messages, so that Locust Master knows this worker is alive
+ * - [statsReportMillis] frequency of outbound statistics-report messages from [LocustTaskReporter] aggregations
+ * - [blockingIoContext] coroutine context used to wait for messages from Locust Master ([Dispatchers.IO] by default)
+ */
 @OptIn(DelicateCoroutinesApi::class)
 @ExperimentalCoroutinesApi
 class LocustWorker(
     private val host: String,
     private val port: Int,
     private val tasks: List<LocustTask>,
-    taskThreads: Int = 2,
-    uniqueNodeId: String? = null,
+    private val uniqueNodeId: String? = null,
+    private val taskThreads: Int = 2,
     private val messageProducerBufferSize: Int = 1024,
     private val messageConsumerBufferSize: Int = 1024,
     private val successOrFailureBufferSize: Int = 8192,
@@ -89,116 +109,120 @@ class LocustWorker(
         }
     }
 
-    suspend fun startup(): Unit = coroutineScope {
-        logger.info { "Starting Locust Worker" }
+    suspend fun startup(): Unit =
+        coroutineScope {
+            logger.info { "Starting Locust Worker" }
 
-        if (workerState.get() != NOT_READY) {
-            throw IllegalStateException("Unexpected state: ${workerState.get()}")
-        }
-
-        if (client.connect().not()) {
-            throw IllegalStateException("Unable to connect to Locust at $host:$port")
-        }
-        logger.info { "Connected to Locust at $host:$port" }
-
-        val receiveMessageChannel = Channel<Message>(capacity = messageProducerBufferSize)
-        launch(context = blockingIoContext) {
-            try {
-                while (isActive) {
-                    client.receiveMessageBlocking()?.let { receiveMessageChannel.send(it) }
-                }
-            } catch (e: ZMQException) {
-                if (workerState.get() == SHUTDOWN) {
-                    logger.debug { "Receive Message producer ZMQ socket closed" }
-                } else {
-                    logger.warn(e) { "Receive Message producer ZMQ error" }
-                }
-            } catch (e: CancellationException) {
-                if (workerState.get() == SHUTDOWN) {
-                    logger.debug { "Receive Message producer closed" }
-                } else {
-                    logger.warn(e) { "Receive Message producer cancelled error" }
-                }
-            } catch (e: Exception) {
-                logger.error(e) { "Receive Message producer error" }
+            if (workerState.get() != NOT_READY) {
+                throw IllegalStateException("Unexpected state: ${workerState.get()}")
             }
-        }
 
-        val sendMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
-        launch(context = controlContext) {
-            try {
-                for (message in sendMessageChannel) {
-                    if (client.sendMessageAsync(message).not()) {
-                        logger.warn { "Unable to send ZMQ message, type=${message.type}" }
+            if (client.connect().not()) {
+                throw IllegalStateException("Unable to connect to Locust at $host:$port")
+            }
+            logger.info { "Connected to Locust at $host:$port" }
+
+            val receiveMessageChannel = Channel<Message>(capacity = messageProducerBufferSize)
+            launch(context = blockingIoContext) {
+                try {
+                    while (isActive) {
+                        client.receiveMessageBlocking()?.let { receiveMessageChannel.send(it) }
                     }
+                } catch (e: ZMQException) {
+                    if (workerState.get() == SHUTDOWN) {
+                        logger.debug { "Receive Message producer ZMQ socket closed" }
+                    } else {
+                        logger.warn(e) { "Receive Message producer ZMQ error" }
+                    }
+                } catch (e: CancellationException) {
+                    if (workerState.get() == SHUTDOWN) {
+                        logger.debug { "Receive Message producer closed" }
+                    } else {
+                        logger.warn(e) { "Receive Message producer cancelled error" }
+                    }
+                } catch (e: Exception) {
+                    logger.error(e) { "Receive Message producer error" }
                 }
-            } catch (e: ZMQException) {
-                logger.warn(e) { "Send Message consumer ZMQ error" }
-            } catch (e: CancellationException) {
-                if (workerState.get() == SHUTDOWN) {
-                    logger.debug { "Send Message consumer closed" }
-                } else {
-                    logger.warn(e) { "Send Message consumer cancelled error" }
-                }
-            } catch (e: Exception) {
-                logger.error(e) { "Send Message consumer error" }
             }
-        }
 
-        sendMessageChannel.send(Message(CLIENT_READY, nodeId))
-        if (workerState.compareAndSet(NOT_READY, READY).not()) {
-            throw IllegalStateException("Unexpected state: ${workerState.get()}")
-        }
-
-        val stats = LocustStats(nodeId, workerState, controlContext, sendMessageChannel, successOrFailureBufferSize)
-
-        launch(context = controlContext) {
-            receiveAck(receiveMessageChannel)
-            coroutineScope {
-                launch(context = controlContext) {
-                    while (true) {
-                        try {
-                            delay(heartbeatMillis)
-
-                            val stateName = when (val state = workerState.get()) {
-                                READY, WAITING -> READY.lowerCase
-                                SPAWNING, RUNNING, STOPPED -> state.lowerCase
-                                SHUTDOWN -> break
-                                else -> throw IllegalStateException("Unexpected state: ${workerState.get()}")
-                            }
-                            val cpuUsage = (osBean.cpuLoad * 100).roundToInt()
-                            val data = mapOf<String, Any>(
-                                "state" to stateName,
-                                "current_cpu_usage" to cpuUsage,
-                                "current_memory_usage" to osBean.freeMemorySize,
-                            )
-                            sendMessageChannel.send(Message(HEARTBEAT, nodeId, data))
-
-                            logger.trace { "Sent heartbeat with state=$stateName" }
-                        } catch (e: Exception) {
-                            logger.error(e) { "Error from heartbeat loop" }
+            val sendMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
+            launch(context = controlContext) {
+                try {
+                    for (message in sendMessageChannel) {
+                        if (client.sendMessageAsync(message).not()) {
+                            logger.warn { "Unable to send ZMQ message, type=${message.type}" }
                         }
                     }
+                } catch (e: ZMQException) {
+                    logger.warn(e) { "Send Message consumer ZMQ error" }
+                } catch (e: CancellationException) {
+                    if (workerState.get() == SHUTDOWN) {
+                        logger.debug { "Send Message consumer closed" }
+                    } else {
+                        logger.warn(e) { "Send Message consumer cancelled error" }
+                    }
+                } catch (e: Exception) {
+                    logger.error(e) { "Send Message consumer error" }
                 }
-                stats.start(statsReportMillis)
-                eventLoop(stats, sendMessageChannel, receiveMessageChannel)
             }
-        }
-    }
 
-    private suspend fun receiveAck(receiveMessageChannel: ReceiveChannel<Message>) = coroutineScope {
-        withTimeout(ackTimeoutMillis * 1_000) {
-            val receivedMessage = receiveMessageChannel.receive()
-            if (receivedMessage.type != ACK) {
-                throw IllegalStateException("Expected ack, but got: ${receivedMessage.type}")
+            sendMessageChannel.send(Message(CLIENT_READY, nodeId))
+            if (workerState.compareAndSet(NOT_READY, READY).not()) {
+                throw IllegalStateException("Unexpected state: ${workerState.get()}")
             }
-            val workerIndex = receivedMessage.data!!["index"]
-            logger.info { "Received ack, worker-index=$workerIndex" }
+
+            val stats = LocustStats(nodeId, workerState, controlContext, sendMessageChannel, successOrFailureBufferSize)
+
+            launch(context = controlContext) {
+                receiveAck(receiveMessageChannel)
+                coroutineScope {
+                    launch(context = controlContext) {
+                        while (true) {
+                            try {
+                                delay(heartbeatMillis)
+
+                                val stateName =
+                                    when (val state = workerState.get()) {
+                                        READY, WAITING -> READY.lowerCase
+                                        SPAWNING, RUNNING, STOPPED -> state.lowerCase
+                                        SHUTDOWN -> break
+                                        else -> throw IllegalStateException("Unexpected state: ${workerState.get()}")
+                                    }
+                                val cpuUsage = (osBean.cpuLoad * 100).roundToInt()
+                                val data =
+                                    mapOf<String, Any>(
+                                        "state" to stateName,
+                                        "current_cpu_usage" to cpuUsage,
+                                        "current_memory_usage" to osBean.freeMemorySize,
+                                    )
+                                sendMessageChannel.send(Message(HEARTBEAT, nodeId, data))
+
+                                logger.trace { "Sent heartbeat with state=$stateName" }
+                            } catch (e: Exception) {
+                                logger.error(e) { "Error from heartbeat loop" }
+                            }
+                        }
+                    }
+                    stats.start(statsReportMillis)
+                    eventLoop(stats, sendMessageChannel, receiveMessageChannel)
+                }
+            }
         }
-        if (workerState.compareAndSet(READY, WAITING).not()) {
-            throw IllegalStateException("Unexpected state: ${workerState.get()}")
+
+    private suspend fun receiveAck(receiveMessageChannel: ReceiveChannel<Message>) =
+        coroutineScope {
+            withTimeout(ackTimeoutMillis * 1_000) {
+                val receivedMessage = receiveMessageChannel.receive()
+                if (receivedMessage.type != ACK) {
+                    throw IllegalStateException("Expected ack, but got: ${receivedMessage.type}")
+                }
+                val workerIndex = receivedMessage.data!!["index"]
+                logger.info { "Received ack, worker-index=$workerIndex" }
+            }
+            if (workerState.compareAndSet(READY, WAITING).not()) {
+                throw IllegalStateException("Unexpected state: ${workerState.get()}")
+            }
         }
-    }
 
     private suspend fun eventLoop(
         stats: LocustStats,
@@ -270,7 +294,8 @@ class LocustWorker(
         }
         sendMessageChannel.send(Message(LocustMessageType.SPAWNING, nodeId))
 
-        @Suppress("UNCHECKED_CAST") val userClassesCountMap = message.data!!["user_classes_count"] as Map<String, Int>
+        @Suppress("UNCHECKED_CAST")
+        val userClassesCountMap = message.data!!["user_classes_count"] as Map<String, Int>
         val numUsers: Int = userClassesCountMap.values.fold(0) { acc, next -> acc + next }
 
         // cleanup any empty task-sets (e.g., all failed to start)
@@ -302,57 +327,59 @@ class LocustWorker(
 
             for (task in tasks) {
                 val taskInstance = task.instance()
-                taskJobs[taskInstance] = GlobalScope.launch(context = taskContext) {
-                    try {
+                taskJobs[taskInstance] =
+                    GlobalScope.launch(context = taskContext) {
                         try {
-                            taskInstance.beforeExecuteLoop(taskContext)
-                        } catch (e: CancellationException) {
-                            logger.info { "Task (${taskInstance.name()}) cancelled (onStart)" }
-                            return@launch
-                        } catch (e: Exception) {
-                            logger.error(e) { "Task (${taskInstance.name()}) onStart exception caught" }
-                            stats.failure("onStart", taskInstance.name(), 0, e.message ?: "")
-                            return@launch
-                        }
-                        try {
-                            while (isActive) {
-                                taskInstance.execute(stats, taskContext)
-                            }
-                            if (isActive.not()) {
-                                logger.warn {
-                                    "Task (${taskInstance.name()}) no longer active. Was CancellationException suppressed?"
-                                }
+                            try {
+                                taskInstance.beforeExecuteLoop(taskContext)
+                            } catch (e: CancellationException) {
+                                logger.info { "Task (${taskInstance.name()}) cancelled (onStart)" }
+                                return@launch
+                            } catch (e: Exception) {
+                                logger.error(e) { "Task (${taskInstance.name()}) onStart exception caught" }
+                                stats.failure(0, e.message ?: "", taskInstance.name(), "onStart")
                                 return@launch
                             }
-                        } catch (e: CancellationException) {
-                            logger.info { "Task (${taskInstance.name()}) cancelled" }
-                            return@launch
-                        } catch (e: Exception) {
-                            logger.error(e) { "Task (${taskInstance.name()}) execute exception caught" }
-                            stats.failure("unknown", taskInstance.name(), 0, e.message ?: "")
-                        } finally {
                             try {
-                                taskInstance.afterExecuteLoop(taskContext)
+                                while (isActive) {
+                                    taskInstance.execute(stats, taskContext)
+                                }
+                                if (isActive.not()) {
+                                    logger.warn {
+                                        "Task (${taskInstance.name()}) no longer active. Was CancellationException suppressed?"
+                                    }
+                                    return@launch
+                                }
                             } catch (e: CancellationException) {
-                                logger.info { "Task (${taskInstance.name()}) cancelled (onStop)" }
+                                logger.info { "Task (${taskInstance.name()}) cancelled" }
+                                return@launch
                             } catch (e: Exception) {
-                                logger.warn(e) { "Task (${taskInstance.name()}) onStop exception caught" }
+                                logger.error(e) { "Task (${taskInstance.name()}) execute exception caught" }
+                                stats.failure(0, e.message ?: "", taskInstance.name(), "unknown")
+                            } finally {
+                                try {
+                                    taskInstance.afterExecuteLoop(taskContext)
+                                } catch (e: CancellationException) {
+                                    logger.info { "Task (${taskInstance.name()}) cancelled (onStop)" }
+                                } catch (e: Exception) {
+                                    logger.warn(e) { "Task (${taskInstance.name()}) onStop exception caught" }
+                                }
                             }
+                        } finally {
+                            // remove ourselves from taskJobs
+                            taskJobs.remove(taskInstance)
                         }
-                    } finally {
-                        // remove ourselves from taskJobs
-                        taskJobs.remove(taskInstance)
                     }
-                }
             }
         }
 
         stats.updateUserCounts(numUsers, userClassesCountMap)
 
-        val messageData = mapOf(
-            "count" to numUsers,
-            "user_classes_count" to userClassesCountMap,
-        )
+        val messageData =
+            mapOf(
+                "count" to numUsers,
+                "user_classes_count" to userClassesCountMap,
+            )
         sendMessageChannel.send(Message(SPAWNING_COMPLETE, nodeId, messageData))
         workerState.set(RUNNING)
     }

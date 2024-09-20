@@ -12,7 +12,8 @@ enum class LocustMessageType(val lowerCase: String) {
     SPAWNING("spawning"),
     SPAWNING_COMPLETE("spawning_complete"),
     STOP("stop"),
-    STATS("stats");
+    STATS("stats"),
+    ;
 
     companion object {
         private val lowerCaseTypeMap: Map<String, LocustMessageType> = entries.associateBy { it.lowerCase }

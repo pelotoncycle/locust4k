@@ -2,14 +2,54 @@ package com.onepeloton.locust4k
 
 import kotlin.time.TimeMark
 
-const val EXECUTE = "execute"
+/** Default `method` argument for [LocustTaskReporter] callbacks. */
+const val EXECUTE_METHOD = "execute"
 
+/**
+ * Callback functions for each iteration of a [LocustTask] execution.
+ */
 interface LocustTaskReporter {
-    suspend fun success(method: String, taskName: String, responseTimeMillis: Long, contentLength: Long)
+    /**
+     * Report successful load test network request with elapsed [responseTimeMillis] and [contentLength] of response.
+     * The optional [method] argument could be used where there are multiple interactions being measured per task.
+     */
+    suspend fun success(
+        responseTimeMillis: Long,
+        contentLength: Long,
+        taskName: String,
+        method: String = EXECUTE_METHOD,
+    )
 
-    suspend fun success(method: String, taskName: String, responseTimeMark: TimeMark, contentLength: Long)
+    /**
+     * Report successful load test network request with elapsed [responseTimeMark] and [contentLength] of response.
+     * The optional [method] argument could be used where there are multiple interactions being measured per task.
+     */
+    suspend fun success(
+        responseTimeMark: TimeMark,
+        contentLength: Long,
+        taskName: String,
+        method: String = EXECUTE_METHOD,
+    )
 
-    suspend fun failure(method: String, taskName: String, responseTimeMillis: Long, error: String)
+    /**
+     * Report failure response of load test network request with elapsed [responseTimeMillis] and [error] message.
+     * The optional [method] argument could be used where there are multiple interactions being measured per task.
+     */
+    suspend fun failure(
+        responseTimeMillis: Long,
+        error: String,
+        taskName: String,
+        method: String = EXECUTE_METHOD,
+    )
 
-    suspend fun failure(method: String, taskName: String, responseTimeMark: TimeMark, error: String)
+    /**
+     * Report failure response of load test network request with elapsed [responseTimeMark] and [error] message.
+     * The optional [method] argument could be used where there are multiple interactions being measured per task.
+     */
+    suspend fun failure(
+        responseTimeMark: TimeMark,
+        error: String,
+        taskName: String,
+        method: String = EXECUTE_METHOD,
+    )
 }

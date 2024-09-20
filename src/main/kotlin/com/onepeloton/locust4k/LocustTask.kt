@@ -33,7 +33,10 @@ interface LocustTask {
      *
      * All code must be non-blocking and the given [context] should be used to launch child coroutines.
      */
-    suspend fun execute(reporter: LocustTaskReporter, context: CoroutineContext)
+    suspend fun execute(
+        reporter: LocustTaskReporter,
+        context: CoroutineContext,
+    )
 
     /**
      * Builds an instance of this task, where each "Locust user" is a distinct instance. Instances must be

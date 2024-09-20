@@ -42,10 +42,11 @@ class StatsError(
         }
     }
 
-    fun toMap(): Map<String, Any> = mapOf(
-        "name" to name,
-        "method" to method,
-        "error" to error,
-        "occurrences" to occurrences,
-    )
+    fun toMap(): Map<String, Any> =
+        mapOf(
+            "name" to name,
+            "method" to method,
+            "error" to error,
+            "occurrences" to occurrences,
+        )
 }

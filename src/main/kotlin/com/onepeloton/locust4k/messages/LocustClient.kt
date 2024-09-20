@@ -10,9 +10,8 @@ import java.io.Closeable
 class LocustClient(
     private val host: String,
     private val port: Int,
-    private val nodeId: String
+    private val nodeId: String,
 ) : Closeable {
-
     private val logger = KotlinLogging.logger {}
 
     private val zmqContext = ZMQ.context(1)

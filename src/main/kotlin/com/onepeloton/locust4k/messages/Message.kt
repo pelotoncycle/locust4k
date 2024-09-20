@@ -28,18 +28,20 @@ class Message {
         val unpacker = MessagePack.newDefaultUnpacker(bytes)
         unpacker.unpackArrayHeader()
         type = LocustMessageType.valueOfLowerCase(unpacker.unpackString())
-        data = if (unpacker.nextFormat != MessageFormat.NIL) {
-            unpackMap(unpacker)
-        } else {
-            unpacker.unpackNil()
-            null
-        }
-        nodeId = if (unpacker.nextFormat != MessageFormat.NIL) {
-            unpacker.unpackString()
-        } else {
-            unpacker.unpackNil()
-            null
-        }
+        data =
+            if (unpacker.nextFormat != MessageFormat.NIL) {
+                unpackMap(unpacker)
+            } else {
+                unpacker.unpackNil()
+                null
+            }
+        nodeId =
+            if (unpacker.nextFormat != MessageFormat.NIL) {
+                unpacker.unpackString()
+            } else {
+                unpacker.unpackNil()
+                null
+            }
         unpacker.close()
     }
 

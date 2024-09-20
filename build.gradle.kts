@@ -79,7 +79,7 @@ mavenPublishing {
         KotlinJvm(
             javadocJar = JavadocJar.Dokka("dokkaHtml"),
             sourcesJar = true,
-        )
+        ),
     )
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
@@ -129,17 +129,19 @@ tasks {
     compileKotlin {
         kotlinOptions {
             jvmTarget = "17"
-            freeCompilerArgs = listOf(
-                "-opt-in=kotlin.RequiresOptIn"
-            )
+            freeCompilerArgs =
+                listOf(
+                    "-opt-in=kotlin.RequiresOptIn",
+                )
         }
     }
     compileTestKotlin {
         kotlinOptions {
             jvmTarget = "17"
-            freeCompilerArgs = listOf(
-                "-opt-in=kotlin.RequiresOptIn"
-            )
+            freeCompilerArgs =
+                listOf(
+                    "-opt-in=kotlin.RequiresOptIn",
+                )
         }
     }
 }
@@ -152,7 +154,7 @@ tasks.test {
             TestLogEvent.FAILED,
             TestLogEvent.PASSED,
             TestLogEvent.SKIPPED,
-            TestLogEvent.STANDARD_OUT
+            TestLogEvent.STANDARD_OUT,
         )
         exceptionFormat = TestExceptionFormat.FULL
         showExceptions = true
@@ -176,8 +178,8 @@ tasks.jar {
         attributes(
             mapOf(
                 "Implementation-Title" to project.name,
-                "Implementation-Version" to project.version
-            )
+                "Implementation-Version" to project.version,
+            ),
         )
     }
 }
