@@ -69,8 +69,8 @@ description = "Locust Worker Client for Kotlin"
 version = "0.0.0-SNAPSHOT"
 gitVersioning.apply {
     refs {
-        branch(".+") { version = "\${ref}-SNAPSHOT" }
         tag("v(?<version>.*)") { version = "\${ref.version}" }
+        branch(".+") { version = "\${ref}-SNAPSHOT" }
     }
 }
 
@@ -86,6 +86,7 @@ mavenPublishing {
     coordinates(groupId = group as String, artifactId = rootProject.name, version = version as String)
     pom {
         name.set("Locust4k")
+        description.set(project.description)
         inceptionYear.set("2024")
         url.set("https://github.com/pelotoncycle/locust4k/")
         licenses {
