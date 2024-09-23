@@ -4,7 +4,7 @@ on:
 
 jobs:
   unit-test:
-    runs-on: [ self-hosted, standard ]
+    runs-on: [ arss-runner-dind ]
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 21
@@ -33,7 +33,7 @@ jobs:
           rm -f ~/.gradle/caches/modules-2/modules-2.lock
           rm -f ~/.gradle/caches/modules-2/gc.properties
   linter:
-    runs-on: [ self-hosted, standard ]
+    runs-on: [ arss-runner-dind ]
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 21
