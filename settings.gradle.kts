@@ -4,6 +4,7 @@ pluginManagement {
     val dokkaVersion: String by settings
     val gitVersioningPluginVersion: String by settings
     val gradleMavenPublishPluginVersion: String by settings
+    val jibVersion: String by settings
     val kotlinVersion: String by settings
     val ktlintPluginVersion: String by settings
 
@@ -13,6 +14,7 @@ pluginManagement {
     }
 
     plugins {
+        id("com.google.cloud.tools.jib") version jibVersion
         id("com.vanniktech.maven.publish") version gradleMavenPublishPluginVersion
         id("me.qoomon.git-versioning") version gitVersioningPluginVersion
         id("org.jetbrains.dokka") version dokkaVersion

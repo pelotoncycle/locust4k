@@ -15,10 +15,7 @@ out/
 .settings
 .classpath
 .factorypath
-
-# Misc
-*.key
-*.log
+.kotlin
 
 # Locust
 __pycache__/
@@ -26,7 +23,3 @@ locust-*.tgz
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
-
-# Redis dumps
-dump.rdb
-

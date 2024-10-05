@@ -17,11 +17,16 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * Example load test application.
+ *
+ * Environment variables:
+ *
+ * - `LOCUST_MASTER_HOST` (default 127.0.0.1)
+ * - `LOCUST_MASTER_PORT` (default 5557)
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun main() {
-    val host = "127.0.0.1"
-    val port = 5557
+    val host = System.getenv("LOCUST_MASTER_HOST") ?: "127.0.0.1"
+    val port = System.getenv("LOCUST_MASTER_PORT")?.toInt() ?: 5557
     val worker = LocustWorker(host, port, listOf(ExampleLocustTask()))
 
     getRuntime().addShutdownHook(Thread { worker.shutdown() })
