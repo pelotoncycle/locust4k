@@ -236,7 +236,7 @@ class LocustWorker(
                         logger.info { "Quit message from controller, state=${workerState.get()}" }
                         workerState.set(STOPPED)
 
-                        perUserTaskJobs.forEach { user -> user.forEach { it.value } }
+                        perUserTaskJobs.forEach { user -> user.forEach { it.value.cancel() } }
                         perUserTaskJobs.clear()
 
                         // send last stats message before exiting
