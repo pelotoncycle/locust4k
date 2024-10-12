@@ -7,6 +7,7 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
+    id("com.google.cloud.tools.jib")
     id("com.vanniktech.maven.publish")
     id("me.qoomon.git-versioning")
     id("org.jetbrains.dokka")
@@ -35,18 +36,19 @@ val eclipseCollectionsVersion: String by project
 val jacksonModuleKotlinVersion: String by project
 val jeromqVersion: String by project
 val junitJupiterVersion: String by project
+val junitPlatformLauncherVersion: String by project
 val kotlinLoggingJvmVersion: String by project
 val kotlinVersion: String by project
 val kotlinxCoroutinesVersion: String by project
 val ktlintVersion: String by project
 val logbackVersion: String by project
-val mockitoKotlinVersion: String by project
 val msgpackVersion: String by project
 val nettyVersion: String by project
+val restAssuredVersion: String by project
 val slf4jVersion: String by project
+val testcontainersVersion: String by project
 
 dependencies {
-    compileOnly("com.pinterest.ktlint:ktlint-core:$ktlintVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:$kotlinxCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:$kotlinxCoroutinesVersion")
     implementation("io.github.oshai:kotlin-logging-jvm:$kotlinLoggingJvmVersion")
@@ -58,10 +60,16 @@ dependencies {
     implementation("org.eclipse.collections:eclipse-collections:$eclipseCollectionsVersion")
     implementation("ch.qos.logback:logback-classic:$logbackVersion")
     implementation("org.slf4j:slf4j-api:$slf4jVersion")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:$mockitoKotlinVersion")
+
+    // lint
+    compileOnly("com.pinterest.ktlint:ktlint-core:$ktlintVersion")
+
+    // test
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:$junitPlatformLauncherVersion")
+    testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
+    testImplementation("org.testcontainers:junit-jupiter:$testcontainersVersion")
+    testImplementation("io.rest-assured:rest-assured:$restAssuredVersion")
+    testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
 }
 
 group = "com.onepeloton.locust4k"
@@ -126,6 +134,15 @@ mavenPublishing {
     }
 }
 
+jib {
+    to {
+        image = "locust4k/example"
+    }
+    container {
+        mainClass = "com.onepeloton.locust4k.examples.ExampleApp"
+    }
+}
+
 tasks.named("compileKotlin", org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask::class.java) {
     compilerOptions {
         freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
@@ -147,11 +164,10 @@ tasks.test {
         showCauses = true
         showStackTraces = true
     }
-    finalizedBy(tasks.jacocoTestReport) // report is always generated after tests run
 }
 
 tasks.jacocoTestReport {
-    dependsOn(tasks.test) // tests are required to run before generating the report
+    dependsOn(tasks.test)
     reports {
         xml.required.set(true)
         csv.required.set(false)

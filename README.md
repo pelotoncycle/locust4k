@@ -61,3 +61,15 @@ In another terminal, run the example Worker application:
 ```
 
 Visit http://localhost:8089/ to start the load test.
+
+## Tests
+
+We use Docker and [Testcontainers](https://java.testcontainers.org) to test interoperability with Locust master.
+
+```shell
+# build ExampleApp Docker image
+./gradlew jibDockerBuild
+
+# execute test suite
+./gradlew test
+```

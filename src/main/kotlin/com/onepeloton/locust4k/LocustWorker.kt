@@ -236,7 +236,7 @@ class LocustWorker(
                         logger.info { "Quit message from controller, state=${workerState.get()}" }
                         workerState.set(STOPPED)
 
-                        perUserTaskJobs.forEach { user -> user.forEach { it.value } }
+                        perUserTaskJobs.forEach { user -> user.forEach { it.value.cancel() } }
                         perUserTaskJobs.clear()
 
                         // send last stats message before exiting
@@ -333,11 +333,11 @@ class LocustWorker(
                             try {
                                 taskInstance.beforeExecuteLoop(taskContext)
                             } catch (e: CancellationException) {
-                                logger.info { "Task (${taskInstance.name()}) cancelled (onStart)" }
+                                logger.info { "Task (${taskInstance.name()}) cancelled (beforeExecuteLoop)" }
                                 return@launch
                             } catch (e: Exception) {
-                                logger.error(e) { "Task (${taskInstance.name()}) onStart exception caught" }
-                                stats.failure(0, e.message ?: "", taskInstance.name(), "onStart")
+                                logger.error(e) { "Task (${taskInstance.name()}) beforeExecuteLoop exception caught" }
+                                stats.failure(0, e.message ?: "", taskInstance.name(), "beforeExecuteLoop")
                                 return@launch
                             }
                             try {
@@ -345,9 +345,7 @@ class LocustWorker(
                                     taskInstance.execute(stats, taskContext)
                                 }
                                 if (isActive.not()) {
-                                    logger.warn {
-                                        "Task (${taskInstance.name()}) no longer active. Was CancellationException suppressed?"
-                                    }
+                                    logger.info { "Task (${taskInstance.name()}) cancelled (inactive)" }
                                     return@launch
                                 }
                             } catch (e: CancellationException) {
@@ -360,9 +358,9 @@ class LocustWorker(
                                 try {
                                     taskInstance.afterExecuteLoop(taskContext)
                                 } catch (e: CancellationException) {
-                                    logger.info { "Task (${taskInstance.name()}) cancelled (onStop)" }
+                                    logger.info { "Task (${taskInstance.name()}) cancelled (afterExecuteLoop)" }
                                 } catch (e: Exception) {
-                                    logger.warn(e) { "Task (${taskInstance.name()}) onStop exception caught" }
+                                    logger.warn(e) { "Task (${taskInstance.name()}) afterExecuteLoop exception caught" }
                                 }
                             }
                         } finally {
