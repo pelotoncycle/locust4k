@@ -1,6 +1,9 @@
 package com.onepeloton.locust4k.examples
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.restassured.module.kotlin.extensions.Given
+import io.restassured.module.kotlin.extensions.Then
+import io.restassured.module.kotlin.extensions.When
 import org.junit.jupiter.api.fail
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.Network
@@ -97,6 +100,32 @@ abstract class TestcontainersBase {
                     logger.warn(e) { "Unexpected exception while stopping ${container.dockerImageName}" }
                 }
             }
+        }
+    }
+
+    protected fun startLoadTest(
+        locustMasterContainer: GenericContainer<*>,
+        users: Int = 1,
+        spawnRate: Int = 1,
+    ) {
+        Given {
+            port(locustMasterContainer.getMappedPort(8089))
+            formParam("user_count", users)
+            formParam("spawn_rate", spawnRate)
+        } When {
+            post("/swarm")
+        } Then {
+            statusCode(200)
+        }
+    }
+
+    protected fun stopLoadTest(locustMasterContainer: GenericContainer<*>) {
+        Given {
+            port(locustMasterContainer.getMappedPort(8089))
+        } When {
+            get("/stop")
+        } Then {
+            statusCode(200)
         }
     }
 }

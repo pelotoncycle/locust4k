@@ -345,9 +345,7 @@ class LocustWorker(
                                     taskInstance.execute(stats, taskContext)
                                 }
                                 if (isActive.not()) {
-                                    logger.warn {
-                                        "Task (${taskInstance.name()}) no longer active. Was CancellationException suppressed?"
-                                    }
+                                    logger.info { "Task (${taskInstance.name()}) cancelled (inactive)" }
                                     return@launch
                                 }
                             } catch (e: CancellationException) {
