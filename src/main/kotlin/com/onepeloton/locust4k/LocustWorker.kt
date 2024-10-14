@@ -146,7 +146,7 @@ class LocustWorker(
 
             val receiveMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
             receiveMessageJob =
-                launch(context = controlContext) {
+                launch(context = blockingIoContext) {
                     try {
                         while (isActive) {
                             val message = client.receiveMessageAsync()
