@@ -55,8 +55,6 @@ class LocustClient(
 
     override fun close() {
         logger.debug { "Closing connection" }
-        zmqContext.use { _ ->
-            zmqSocket.close()
-        }
+        zmqContext.close()
     }
 }
