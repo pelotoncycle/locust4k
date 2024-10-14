@@ -63,11 +63,12 @@ import kotlin.system.exitProcess
  * - [messageProducerBufferSize] is the number of outbound messages that can be buffered (to Locust Master)
  * - [messageConsumerBufferSize] is the number of inbound messages that can be buffered (from Locust Master)
  * - [successOrFailureBufferSize] is the number of [LocustTaskReporter] success or failure events that can be buffered
+ * - [messageConsumerBackoffMillis] amount of time to sleep after polling for inbound messages (from Locust Master)
  * - [ackTimeoutMillis] timeout for receiving an ACK message from Locust Master after connecting
  * - [heartbeatFromMasterTimeoutMillis] timeout for receiving a heartbeat message from Locust Master
  * - [heartbeatMillis] frequency of outbound heartbeat messages, so that Locust Master knows this worker is alive
  * - [statsReportMillis] frequency of outbound statistics-report messages from [LocustTaskReporter] aggregations
- * - [blockingIoContext] coroutine context used to wait for messages from Locust Master ([Dispatchers.IO] by default)
+ * - [blockingIoContext] coroutine context used for potentially blocking operations ([Dispatchers.IO] by default)
  */
 @OptIn(DelicateCoroutinesApi::class)
 @ExperimentalCoroutinesApi
@@ -80,6 +81,7 @@ class LocustWorker(
     private val messageProducerBufferSize: Int = 1024,
     private val messageConsumerBufferSize: Int = 1024,
     private val successOrFailureBufferSize: Int = 8192,
+    private val messageConsumerBackoffMillis: Long = 10,
     private val ackTimeoutMillis: Long = 5_000,
     private val heartbeatFromMasterTimeoutMillis: Long = 5_000,
     private val heartbeatMillis: Long = 1_000,
@@ -102,6 +104,9 @@ class LocustWorker(
 
     @Volatile
     private var receiveMessageJob: Job? = null
+
+    @Volatile
+    private var sendMessageJob: Job? = null
 
     private val workerState = AtomicReference(NOT_READY)
 
@@ -141,10 +146,15 @@ class LocustWorker(
 
             val receiveMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
             receiveMessageJob =
-                launch(context = blockingIoContext) {
+                launch(context = controlContext) {
                     try {
                         while (isActive) {
-                            client.receiveMessageBlocking()?.let { receiveMessageChannel.send(it) }
+                            val message = client.receiveMessageAsync()
+                            if (message != null) {
+                                receiveMessageChannel.send(message)
+                            } else {
+                                delay(messageConsumerBackoffMillis)
+                            }
                         }
                     } catch (e: ZMQException) {
                         if (workerState.get() == SHUTDOWN) {
@@ -160,34 +170,33 @@ class LocustWorker(
                         }
                     } catch (e: Exception) {
                         logger.error(e) { "Receive Message consumer error" }
-                    } finally {
-                        client.close()
                     }
                 }
 
             val sendMessageChannel = Channel<Message>(capacity = messageProducerBufferSize)
-            launch(context = controlContext) {
-                try {
-                    for (message in sendMessageChannel) {
-                        if (checkForHeartbeatFromMasterTimeout()) {
-                            return@launch
+            sendMessageJob =
+                launch(context = controlContext) {
+                    try {
+                        for (message in sendMessageChannel) {
+                            if (checkForHeartbeatFromMasterTimeout()) {
+                                return@launch
+                            }
+                            if (client.sendMessageAsync(message).not()) {
+                                logger.warn { "Unable to send ZMQ message, type=${message.type}" }
+                            }
                         }
-                        if (client.sendMessageAsync(message).not()) {
-                            logger.warn { "Unable to send ZMQ message, type=${message.type}" }
+                    } catch (e: ZMQException) {
+                        logger.warn(e) { "Send Message producer ZMQ error" }
+                    } catch (e: CancellationException) {
+                        if (workerState.get() == SHUTDOWN) {
+                            logger.debug { "Send Message producer closed" }
+                        } else {
+                            logger.warn(e) { "Send Message producer cancelled error" }
                         }
+                    } catch (e: Exception) {
+                        logger.error(e) { "Send Message producer error" }
                     }
-                } catch (e: ZMQException) {
-                    logger.warn(e) { "Send Message producer ZMQ error" }
-                } catch (e: CancellationException) {
-                    if (workerState.get() == SHUTDOWN) {
-                        logger.debug { "Send Message producer closed" }
-                    } else {
-                        logger.warn(e) { "Send Message producer cancelled error" }
-                    }
-                } catch (e: Exception) {
-                    logger.error(e) { "Send Message producer error" }
                 }
-            }
 
             sendMessageChannel.send(Message(CLIENT_READY, nodeId))
             if (workerState.compareAndSet(NOT_READY, READY).not()) {
@@ -200,7 +209,7 @@ class LocustWorker(
                 receiveAck(receiveMessageChannel)
                 coroutineScope {
                     launch(context = controlContext) {
-                        while (true) {
+                        while (isActive) {
                             try {
                                 delay(heartbeatMillis)
 
@@ -432,9 +441,11 @@ class LocustWorker(
         if (workerState.get() != SHUTDOWN) {
             workerState.set(SHUTDOWN)
             logger.info { "Shutting down Locust Worker" }
+            receiveMessageJob?.cancel()
+            sendMessageJob?.cancel()
             taskContext.close()
             controlContext.close()
-            receiveMessageJob?.cancel()
+            client.close()
         }
     }
 }
