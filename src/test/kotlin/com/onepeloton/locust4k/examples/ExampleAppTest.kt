@@ -28,7 +28,7 @@ class ExampleAppTest : TestcontainersBase() {
 
             // when
             LogMessageWaitStrategy()
-                .withRegEx(".* Receive Message producer ZMQ socket closed.*\\s")
+                .withRegEx(".* Shutting down Locust Worker.*\\s")
                 .withStartupTimeout(Duration.ofSeconds(5))
                 .waitUntilReady(locustWorkerExampleContainer)
 
@@ -53,8 +53,6 @@ class ExampleAppTest : TestcontainersBase() {
                     "Stats consumer stopped",
                     "Stats reporter stopped",
                     "Shutting down Locust Worker",
-                    "Closing connection",
-                    "Receive Message producer ZMQ socket closed",
                 ),
             )
         } finally {
@@ -83,7 +81,7 @@ class ExampleAppTest : TestcontainersBase() {
 
             // when
             LogMessageWaitStrategy()
-                .withRegEx(".* Receive Message producer ZMQ socket closed.*\\s")
+                .withRegEx(".* Shutting down Locust Worker.*\\s")
                 .withStartupTimeout(Duration.ofSeconds(5))
                 .waitUntilReady(locustWorkerExampleContainer)
 
@@ -113,8 +111,6 @@ class ExampleAppTest : TestcontainersBase() {
                     "Stats consumer stopped",
                     "Stats reporter stopped",
                     "Shutting down Locust Worker",
-                    "Closing connection",
-                    "Receive Message producer ZMQ socket closed",
                 ),
             )
         } finally {
