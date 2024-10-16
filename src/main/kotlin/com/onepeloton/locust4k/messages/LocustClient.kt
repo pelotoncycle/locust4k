@@ -41,22 +41,14 @@ class LocustClient(
         return zmqSocket.send(message.bytes, ZMQ_DONTWAIT)
     }
 
-//    fun receiveMessageAsync(): Message? {
-//        return zmqSocket.recv(ZMQ_DONTWAIT)?.let { bytes ->
-//            Message(bytes)
-//        }
-//    }
-
-    fun receiveMessageBlocking(): Message? {
-        return zmqSocket.recv()?.let { bytes ->
+    fun receiveMessageAsync(): Message? {
+        return zmqSocket.recv(ZMQ_DONTWAIT)?.let { bytes ->
             Message(bytes)
         }
     }
 
     override fun close() {
         logger.debug { "Closing connection" }
-        zmqContext.use { _ ->
-            zmqSocket.close()
-        }
+        zmqSocket.close()
     }
 }

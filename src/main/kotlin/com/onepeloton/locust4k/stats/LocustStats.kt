@@ -17,6 +17,7 @@ import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.onFailure
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
@@ -61,10 +62,15 @@ class LocustStats(
             statsReporterJob =
                 GlobalScope.launch(context = controlContext) {
                     try {
-                        while (true) {
+                        while (isActive) {
                             delay(statsReportMillis)
                             sendReport()
                             logger.trace { "Stats reporter iteration" }
+                        }
+                        if (workerState.get() == STOPPED) {
+                            // send last stats message
+                            sendReport()
+                            logger.debug { "Stats reporter stopped (inactive)" }
                         }
                     } catch (e: CancellationException) {
                         if (workerState.get() == STOPPED) {

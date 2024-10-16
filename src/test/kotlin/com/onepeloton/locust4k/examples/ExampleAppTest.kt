@@ -50,8 +50,6 @@ class ExampleAppTest : TestcontainersBase() {
                     "Quit message",
                     "Task (exampleTask) cancelled",
                     "afterExecuteLoop invoked",
-                    "Stats consumer stopped",
-                    "Stats reporter stopped",
                     "Shutting down Locust Worker",
                 ),
             )
@@ -108,8 +106,6 @@ class ExampleAppTest : TestcontainersBase() {
                     // next two messages each repeated 3 times, but order inconsistent
                     "Task (exampleTask) cancelled",
                     "afterExecuteLoop invoked",
-                    "Stats consumer stopped",
-                    "Stats reporter stopped",
                     "Shutting down Locust Worker",
                 ),
             )

@@ -39,6 +39,7 @@ import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withTimeout
 import org.zeromq.ZMQException
+import java.lang.System.currentTimeMillis
 import java.lang.management.ManagementFactory
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -62,10 +63,12 @@ import kotlin.system.exitProcess
  * - [messageProducerBufferSize] is the number of outbound messages that can be buffered (to Locust Master)
  * - [messageConsumerBufferSize] is the number of inbound messages that can be buffered (from Locust Master)
  * - [successOrFailureBufferSize] is the number of [LocustTaskReporter] success or failure events that can be buffered
+ * - [messageConsumerBackoffMillis] amount of time to sleep after polling for inbound messages (from Locust Master)
  * - [ackTimeoutMillis] timeout for receiving an ACK message from Locust Master after connecting
+ * - [heartbeatFromMasterTimeoutMillis] timeout for receiving a heartbeat message from Locust Master
  * - [heartbeatMillis] frequency of outbound heartbeat messages, so that Locust Master knows this worker is alive
  * - [statsReportMillis] frequency of outbound statistics-report messages from [LocustTaskReporter] aggregations
- * - [blockingIoContext] coroutine context used to wait for messages from Locust Master ([Dispatchers.IO] by default)
+ * - [blockingIoContext] coroutine context used for potentially blocking operations ([Dispatchers.IO] by default)
  */
 @OptIn(DelicateCoroutinesApi::class)
 @ExperimentalCoroutinesApi
@@ -78,7 +81,9 @@ class LocustWorker(
     private val messageProducerBufferSize: Int = 1024,
     private val messageConsumerBufferSize: Int = 1024,
     private val successOrFailureBufferSize: Int = 8192,
+    private val messageConsumerBackoffMillis: Long = 10,
     private val ackTimeoutMillis: Long = 5_000,
+    private val heartbeatFromMasterTimeoutMillis: Long = 5_000,
     private val heartbeatMillis: Long = 1_000,
     private val statsReportMillis: Long = 3_000,
     private val blockingIoContext: CoroutineContext = Dispatchers.IO,
@@ -93,8 +98,15 @@ class LocustWorker(
     private val controlContext = newSingleThreadContext("locust-worker-control")
     private val taskContext = newFixedThreadPoolContext(taskThreads, "locust-worker-tasks")
 
-    // since controlContext is single-threaded, this object does not need to be thread-safe
+    // since controlContext is single-threaded, these variables do not need to be thread-safe
+    private var lastHeartbeatFromMasterTimeMillis: Long = 0
     private val perUserTaskJobs = ArrayList<Map<LocustTask, Job>>()
+
+    @Volatile
+    private var receiveMessageJob: Job? = null
+
+    @Volatile
+    private var sendMessageJob: Job? = null
 
     private val workerState = AtomicReference(NOT_READY)
 
@@ -109,6 +121,15 @@ class LocustWorker(
         }
     }
 
+    private suspend fun checkForHeartbeatFromMasterTimeout(): Boolean {
+        if (currentTimeMillis() - lastHeartbeatFromMasterTimeMillis > heartbeatFromMasterTimeoutMillis) {
+            logger.info { "Controller heartbeat timeout, state=${workerState.get()}" }
+            quitAndExit()
+            return true
+        }
+        return false
+    }
+
     suspend fun startup(): Unit =
         coroutineScope {
             logger.info { "Starting Locust Worker" }
@@ -121,50 +142,61 @@ class LocustWorker(
                 throw IllegalStateException("Unable to connect to Locust at $host:$port")
             }
             logger.info { "Connected to Locust at $host:$port" }
+            lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
 
-            val receiveMessageChannel = Channel<Message>(capacity = messageProducerBufferSize)
-            launch(context = blockingIoContext) {
-                try {
-                    while (isActive) {
-                        client.receiveMessageBlocking()?.let { receiveMessageChannel.send(it) }
-                    }
-                } catch (e: ZMQException) {
-                    if (workerState.get() == SHUTDOWN) {
-                        logger.debug { "Receive Message producer ZMQ socket closed" }
-                    } else {
-                        logger.warn(e) { "Receive Message producer ZMQ error" }
-                    }
-                } catch (e: CancellationException) {
-                    if (workerState.get() == SHUTDOWN) {
-                        logger.debug { "Receive Message producer closed" }
-                    } else {
-                        logger.warn(e) { "Receive Message producer cancelled error" }
-                    }
-                } catch (e: Exception) {
-                    logger.error(e) { "Receive Message producer error" }
-                }
-            }
-
-            val sendMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
-            launch(context = controlContext) {
-                try {
-                    for (message in sendMessageChannel) {
-                        if (client.sendMessageAsync(message).not()) {
-                            logger.warn { "Unable to send ZMQ message, type=${message.type}" }
+            val receiveMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
+            receiveMessageJob =
+                launch(context = blockingIoContext) {
+                    try {
+                        while (isActive) {
+                            val message = client.receiveMessageAsync()
+                            if (message != null) {
+                                receiveMessageChannel.send(message)
+                            } else {
+                                delay(messageConsumerBackoffMillis)
+                            }
                         }
+                    } catch (e: ZMQException) {
+                        if (workerState.get() == SHUTDOWN) {
+                            logger.debug { "Receive Message consumer ZMQ socket closed" }
+                        } else {
+                            logger.warn(e) { "Receive Message consumer ZMQ error" }
+                        }
+                    } catch (e: CancellationException) {
+                        if (workerState.get() == SHUTDOWN) {
+                            logger.debug { "Receive Message consumer closed" }
+                        } else {
+                            logger.warn(e) { "Receive Message consumer cancelled error" }
+                        }
+                    } catch (e: Exception) {
+                        logger.error(e) { "Receive Message consumer error" }
                     }
-                } catch (e: ZMQException) {
-                    logger.warn(e) { "Send Message consumer ZMQ error" }
-                } catch (e: CancellationException) {
-                    if (workerState.get() == SHUTDOWN) {
-                        logger.debug { "Send Message consumer closed" }
-                    } else {
-                        logger.warn(e) { "Send Message consumer cancelled error" }
-                    }
-                } catch (e: Exception) {
-                    logger.error(e) { "Send Message consumer error" }
                 }
-            }
+
+            val sendMessageChannel = Channel<Message>(capacity = messageProducerBufferSize)
+            sendMessageJob =
+                launch(context = controlContext) {
+                    try {
+                        for (message in sendMessageChannel) {
+                            if (checkForHeartbeatFromMasterTimeout()) {
+                                return@launch
+                            }
+                            if (client.sendMessageAsync(message).not()) {
+                                logger.warn { "Unable to send ZMQ message, type=${message.type}" }
+                            }
+                        }
+                    } catch (e: ZMQException) {
+                        logger.warn(e) { "Send Message producer ZMQ error" }
+                    } catch (e: CancellationException) {
+                        if (workerState.get() == SHUTDOWN) {
+                            logger.debug { "Send Message producer closed" }
+                        } else {
+                            logger.warn(e) { "Send Message producer cancelled error" }
+                        }
+                    } catch (e: Exception) {
+                        logger.error(e) { "Send Message producer error" }
+                    }
+                }
 
             sendMessageChannel.send(Message(CLIENT_READY, nodeId))
             if (workerState.compareAndSet(NOT_READY, READY).not()) {
@@ -177,7 +209,7 @@ class LocustWorker(
                 receiveAck(receiveMessageChannel)
                 coroutineScope {
                     launch(context = controlContext) {
-                        while (true) {
+                        while (isActive) {
                             try {
                                 delay(heartbeatMillis)
 
@@ -218,9 +250,27 @@ class LocustWorker(
                 }
                 val workerIndex = receivedMessage.data!!["index"]
                 logger.info { "Received ack, worker-index=$workerIndex" }
+                lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
             }
             if (workerState.compareAndSet(READY, WAITING).not()) {
                 throw IllegalStateException("Unexpected state: ${workerState.get()}")
+            }
+        }
+
+    private suspend fun quitAndExit(stats: LocustStats? = null) =
+        coroutineScope {
+            try {
+                workerState.set(STOPPED)
+
+                perUserTaskJobs.forEach { user -> user.forEach { it.value.cancel() } }
+                perUserTaskJobs.clear()
+
+                // send last stats message before exiting
+                stats?.stop()
+            } finally {
+                launch(context = blockingIoContext) {
+                    exitProcess(0)
+                }
             }
         }
 
@@ -231,17 +281,11 @@ class LocustWorker(
     ) = coroutineScope {
         launch(context = controlContext) {
             for (message in receiveMessageChannel) {
+                lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
                 when (message.type) {
                     QUIT -> {
                         logger.info { "Quit message from controller, state=${workerState.get()}" }
-                        workerState.set(STOPPED)
-
-                        perUserTaskJobs.forEach { user -> user.forEach { it.value.cancel() } }
-                        perUserTaskJobs.clear()
-
-                        // send last stats message before exiting
-                        stats.stop()
-                        exitProcess(0)
+                        quitAndExit(stats)
                     }
 
                     RECONNECT -> {
@@ -394,10 +438,14 @@ class LocustWorker(
     }
 
     fun shutdown() {
-        logger.info { "Shutting down Locust Worker" }
-        workerState.set(SHUTDOWN)
-        taskContext.close()
-        controlContext.close()
-        client.close()
+        if (workerState.get() != SHUTDOWN) {
+            workerState.set(SHUTDOWN)
+            logger.info { "Shutting down Locust Worker" }
+            receiveMessageJob?.cancel()
+            sendMessageJob?.cancel()
+            taskContext.close()
+            controlContext.close()
+            client.close()
+        }
     }
 }
