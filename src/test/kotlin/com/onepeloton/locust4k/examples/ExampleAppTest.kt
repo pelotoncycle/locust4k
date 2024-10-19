@@ -29,7 +29,7 @@ class ExampleAppTest : TestcontainersBase() {
             // when
             LogMessageWaitStrategy()
                 .withRegEx(".* Shutting down Locust Worker.*\\s")
-                .withStartupTimeout(Duration.ofSeconds(5))
+                .withStartupTimeout(Duration.ofSeconds(10))
                 .waitUntilReady(locustWorkerExampleContainer)
 
             val workerLogs = locustWorkerExampleContainer.logs
@@ -80,7 +80,7 @@ class ExampleAppTest : TestcontainersBase() {
             // when
             LogMessageWaitStrategy()
                 .withRegEx(".* Shutting down Locust Worker.*\\s")
-                .withStartupTimeout(Duration.ofSeconds(5))
+                .withStartupTimeout(Duration.ofSeconds(10))
                 .waitUntilReady(locustWorkerExampleContainer)
 
             val workerLogs = locustWorkerExampleContainer.logs
@@ -128,16 +128,25 @@ class ExampleAppTest : TestcontainersBase() {
                 .waitUntilReady(locustMasterContainer)
 
             // when
-            repeat(2) {
+            val repeatTimes = 2
+            for (i in 1..repeatTimes) {
                 startLoadTest(locustMasterContainer)
 
                 LogMessageWaitStrategy()
+                    .withTimes(i)
                     .withRegEx(".* Spawning Complete message from controller.*\\s")
                     .withStartupTimeout(Duration.ofSeconds(5))
                     .waitUntilReady(locustWorkerExampleContainer)
 
                 stopLoadTest(locustMasterContainer)
+
+                LogMessageWaitStrategy()
+                    .withTimes(i)
+                    .withRegEx(".* Ack message from controller.*\\s")
+                    .withStartupTimeout(Duration.ofSeconds(5))
+                    .waitUntilReady(locustWorkerExampleContainer)
             }
+
             val workerLogs = locustWorkerExampleContainer.logs
 
             // then
