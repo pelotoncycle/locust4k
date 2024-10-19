@@ -73,3 +73,10 @@ We use Docker and [Testcontainers](https://java.testcontainers.org) to test inte
 # execute test suite
 ./gradlew test
 ```
+
+## Logging
+
+This library includes a dependency on [slf4j-api](https://slf4j.org), and a SLF4J binding must be provided on the
+classpath in order to output logs. Log messages are succinct, with additional details set as structured logging
+arguments. A common practice is to output structured logs as JSON via the
+[logstash-logback-encoder](https://github.com/logfellow/logstash-logback-encoder) library.

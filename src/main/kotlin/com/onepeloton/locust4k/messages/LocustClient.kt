@@ -1,5 +1,8 @@
 package com.onepeloton.locust4k.messages
 
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.HOST_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.NODE_ID_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.PORT_LOG_PARAM
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.zeromq.SocketType
 import org.zeromq.ZMQ
@@ -14,6 +17,13 @@ class LocustClient(
 ) : Closeable {
     private val logger = KotlinLogging.logger {}
 
+    private val loggerPayload: Map<String, Any?> =
+        mapOf(
+            NODE_ID_LOG_PARAM to nodeId,
+            HOST_LOG_PARAM to host,
+            PORT_LOG_PARAM to port,
+        )
+
     private val zmqContext = ZMQ.context(1)
 
     // NOTE: dealer sockets are not thread-safe
@@ -21,18 +31,28 @@ class LocustClient(
 
     fun connect(reconnect: Boolean = false): Boolean {
         if (reconnect) {
-            logger.debug { "Reconnecting" }
+            logger.atDebug {
+                message = "Reconnecting"
+                payload = loggerPayload
+            }
             zmqSocket.close()
             zmqSocket = zmqContext.socket(SocketType.DEALER)
         } else {
-            logger.debug { "Connecting" }
+            logger.atDebug {
+                message = "Connecting"
+                payload = loggerPayload
+            }
         }
         zmqSocket.identity = nodeId.toByteArray()
         zmqSocket.tcpKeepAlive = 1
         return try {
             zmqSocket.connect("tcp://$host:$port")
         } catch (e: Exception) {
-            logger.error(e) { "Connection failed" }
+            logger.atError {
+                message = "Connection failed"
+                payload = loggerPayload
+                cause = e
+            }
             false
         }
     }
@@ -48,7 +68,10 @@ class LocustClient(
     }
 
     override fun close() {
-        logger.debug { "Closing connection" }
+        logger.atDebug {
+            message = "Closing connection"
+            payload = loggerPayload
+        }
         zmqSocket.close()
     }
 }

@@ -33,7 +33,6 @@ jacoco {
 }
 
 val eclipseCollectionsVersion: String by project
-val jacksonModuleKotlinVersion: String by project
 val jeromqVersion: String by project
 val junitJupiterVersion: String by project
 val junitPlatformLauncherVersion: String by project
@@ -42,6 +41,7 @@ val kotlinVersion: String by project
 val kotlinxCoroutinesVersion: String by project
 val ktlintVersion: String by project
 val logbackVersion: String by project
+val logstashLogbackEncoderVersion: String by project
 val msgpackVersion: String by project
 val nettyVersion: String by project
 val restAssuredVersion: String by project
@@ -53,7 +53,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:$kotlinxCoroutinesVersion")
     implementation("io.github.oshai:kotlin-logging-jvm:$kotlinLoggingJvmVersion")
     implementation("org.zeromq:jeromq:$jeromqVersion")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonModuleKotlinVersion")
     implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
     implementation("org.msgpack:msgpack-core:$msgpackVersion")
     implementation("io.netty:netty-buffer:$nettyVersion")
