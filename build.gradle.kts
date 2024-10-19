@@ -50,7 +50,6 @@ val testcontainersVersion: String by project
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:$kotlinxCoroutinesVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:$kotlinxCoroutinesVersion")
     implementation("io.github.oshai:kotlin-logging-jvm:$kotlinLoggingJvmVersion")
     implementation("org.zeromq:jeromq:$jeromqVersion")
     implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
