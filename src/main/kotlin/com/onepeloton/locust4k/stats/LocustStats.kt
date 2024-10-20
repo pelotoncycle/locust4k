@@ -263,7 +263,7 @@ class LocustStats(
         total.reset()
         entries.clear()
         errors.clear()
-        logger.atInfo {
+        logger.atDebug {
             message = "Stats reset"
             payload = loggerPayload
         }

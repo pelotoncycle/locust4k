@@ -47,7 +47,7 @@ class MasterHeartbeatTest : TestcontainersBase() {
                     "Starting Locust Worker",
                     "Connecting",
                     "Connected to Locust",
-                    "Received ack",
+                    "Ack message from controller",
                     "Spawn message from controller",
                     "Stats reset",
                     "Spawn increasing user-units",

@@ -48,11 +48,11 @@ private class ExampleLocustTask : LocustTask {
     override fun name(): String = "exampleTask"
 
     override suspend fun beforeExecuteLoop(context: CoroutineContext) {
-        logger.info { "beforeExecuteLoop invoked" }
+        logger.debug { "beforeExecuteLoop invoked" }
     }
 
     override suspend fun afterExecuteLoop(context: CoroutineContext) {
-        logger.info { "afterExecuteLoop invoked" }
+        logger.debug { "afterExecuteLoop invoked" }
     }
 
     override suspend fun execute(

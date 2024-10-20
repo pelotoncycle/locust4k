@@ -318,7 +318,7 @@ class LocustWorker(
                     throw IllegalStateException("Expected ack, but got: ${receivedMessage.type}")
                 }
                 logger.atInfo {
-                    message = "Received ack"
+                    message = "Ack message from controller"
                     payload = loggerPayloadOf(INDEX_LOG_PARAM to receivedMessage.data!!["index"])
                 }
                 lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
@@ -381,7 +381,7 @@ class LocustWorker(
                     }
 
                     SPAWNING_COMPLETE ->
-                        logger.atInfo {
+                        logger.atDebug {
                             message = "Spawning Complete message from controller"
                             payload = loggerPayloadOf()
                         }
@@ -447,19 +447,19 @@ class LocustWorker(
         val numUsersToDelete = if (numUsersDiff < 0) abs(numUsersDiff) else 0
 
         if (numUsersToCreate == 0 && numUsersToDelete == 0) {
-            logger.atInfo {
+            logger.atDebug {
                 message = "Spawn resulted in no change in user-units"
                 payload = loggerPayloadOf()
             }
             return@coroutineScope
         } else if (numUsersToCreate != 0) {
-            logger.atInfo {
+            logger.atDebug {
                 message = "Spawn increasing user-units"
                 payload =
                     loggerPayloadOf(INCREASE_USERS_LOG_PARAM to numUsersToCreate)
             }
         } else {
-            logger.atInfo {
+            logger.atDebug {
                 message = "Spawn decreasing user-units"
                 payload =
                     loggerPayloadOf(DECREASE_USERS_LOG_PARAM to numUsersToDelete)
@@ -483,7 +483,7 @@ class LocustWorker(
                             try {
                                 taskInstance.beforeExecuteLoop(taskContext)
                             } catch (e: CancellationException) {
-                                logger.atInfo {
+                                logger.atDebug {
                                     message = "Task cancelled (beforeExecuteLoop)"
                                     payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
                                 }
@@ -502,14 +502,14 @@ class LocustWorker(
                                     taskInstance.execute(stats, taskContext)
                                 }
                                 if (isActive.not()) {
-                                    logger.atInfo {
+                                    logger.atDebug {
                                         message = "Task cancelled (inactive)"
                                         payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
                                     }
                                     return@launch
                                 }
                             } catch (e: CancellationException) {
-                                logger.atInfo {
+                                logger.atDebug {
                                     message = "Task cancelled"
                                     payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
                                 }
@@ -525,7 +525,7 @@ class LocustWorker(
                                 try {
                                     taskInstance.afterExecuteLoop(taskContext)
                                 } catch (e: CancellationException) {
-                                    logger.atInfo {
+                                    logger.atDebug {
                                         message = "Task cancelled (afterExecuteLoop)"
                                         payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
                                     }
