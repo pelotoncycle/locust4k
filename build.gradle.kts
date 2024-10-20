@@ -41,7 +41,6 @@ val kotlinVersion: String by project
 val kotlinxCoroutinesVersion: String by project
 val ktlintVersion: String by project
 val logbackVersion: String by project
-val logstashLogbackEncoderVersion: String by project
 val msgpackVersion: String by project
 val nettyVersion: String by project
 val restAssuredVersion: String by project
