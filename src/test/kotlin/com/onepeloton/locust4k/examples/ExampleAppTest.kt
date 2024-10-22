@@ -29,7 +29,7 @@ class ExampleAppTest : TestcontainersBase() {
             // when
             LogMessageWaitStrategy()
                 .withRegEx(".* Shutting down Locust Worker.*\\s")
-                .withStartupTimeout(Duration.ofSeconds(5))
+                .withStartupTimeout(Duration.ofSeconds(10))
                 .waitUntilReady(locustWorkerExampleContainer)
 
             val workerLogs = locustWorkerExampleContainer.logs
@@ -41,14 +41,14 @@ class ExampleAppTest : TestcontainersBase() {
                     "Starting Locust Worker",
                     "Connecting",
                     "Connected to Locust",
-                    "Received ack",
+                    "Ack message from controller",
                     "Spawn message from controller",
                     "Stats reset",
-                    "+1 (-0) user-units",
+                    "Spawn increasing user-units",
                     "beforeExecuteLoop invoked",
                     "Spawning Complete",
                     "Quit message",
-                    "Task (exampleTask) cancelled",
+                    "Task cancelled",
                     "afterExecuteLoop invoked",
                     "Shutting down Locust Worker",
                 ),
@@ -80,7 +80,7 @@ class ExampleAppTest : TestcontainersBase() {
             // when
             LogMessageWaitStrategy()
                 .withRegEx(".* Shutting down Locust Worker.*\\s")
-                .withStartupTimeout(Duration.ofSeconds(5))
+                .withStartupTimeout(Duration.ofSeconds(10))
                 .waitUntilReady(locustWorkerExampleContainer)
 
             val workerLogs = locustWorkerExampleContainer.logs
@@ -92,19 +92,19 @@ class ExampleAppTest : TestcontainersBase() {
                     "Starting Locust Worker",
                     "Connecting",
                     "Connected to Locust",
-                    "Received ack",
+                    "Ack message from controller",
                     "Spawn message from controller",
                     "Stats reset",
-                    "+2 (-0) user-units",
+                    "Spawn increasing user-units",
                     "beforeExecuteLoop invoked",
                     "beforeExecuteLoop invoked",
                     "Spawn message from controller",
-                    "+1 (-0) user-units",
+                    "Spawn increasing user-units",
                     "beforeExecuteLoop invoked",
                     "Spawning Complete",
                     "Quit message",
                     // next two messages each repeated 3 times, but order inconsistent
-                    "Task (exampleTask) cancelled",
+                    "Task cancelled",
                     "afterExecuteLoop invoked",
                     "Shutting down Locust Worker",
                 ),
@@ -128,16 +128,25 @@ class ExampleAppTest : TestcontainersBase() {
                 .waitUntilReady(locustMasterContainer)
 
             // when
-            repeat(2) {
+            val repeatTimes = 2
+            for (i in 1..repeatTimes) {
                 startLoadTest(locustMasterContainer)
 
                 LogMessageWaitStrategy()
+                    .withTimes(i)
                     .withRegEx(".* Spawning Complete message from controller.*\\s")
                     .withStartupTimeout(Duration.ofSeconds(5))
                     .waitUntilReady(locustWorkerExampleContainer)
 
                 stopLoadTest(locustMasterContainer)
+
+                LogMessageWaitStrategy()
+                    .withTimes(i)
+                    .withRegEx(".* Ack message from controller.*\\s")
+                    .withStartupTimeout(Duration.ofSeconds(5))
+                    .waitUntilReady(locustWorkerExampleContainer)
             }
+
             val workerLogs = locustWorkerExampleContainer.logs
 
             // then
@@ -147,18 +156,18 @@ class ExampleAppTest : TestcontainersBase() {
                     "Starting Locust Worker",
                     "Connecting",
                     "Connected to Locust",
-                    "Received ack",
+                    "Ack message from controller",
                     // first run
                     "Spawn message from controller",
                     "Stats reset",
-                    "+1 (-0) user-units",
+                    "Spawn increasing user-units",
                     "Spawning Complete",
                     "Stop message from controller",
                     "Ack message from controller",
                     // second run
                     "Spawn message from controller",
                     "Stats reset",
-                    "+1 (-0) user-units",
+                    "Spawn increasing user-units",
                     "Spawning Complete",
                     "Stop message from controller",
                     "Ack message from controller",

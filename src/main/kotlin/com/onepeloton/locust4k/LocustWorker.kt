@@ -7,6 +7,14 @@ import com.onepeloton.locust4k.LocustWorkerState.SHUTDOWN
 import com.onepeloton.locust4k.LocustWorkerState.SPAWNING
 import com.onepeloton.locust4k.LocustWorkerState.STOPPED
 import com.onepeloton.locust4k.LocustWorkerState.WAITING
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.DECREASE_USERS_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.HEARTBEAT_STATE_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.INCREASE_USERS_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.INDEX_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.MESSAGE_TYPE_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.NODE_ID_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.STATE_LOG_PARAM
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.TASK_NAME_LOG_PARAM
 import com.onepeloton.locust4k.messages.LocustClient
 import com.onepeloton.locust4k.messages.LocustMessageType
 import com.onepeloton.locust4k.messages.LocustMessageType.ACK
@@ -121,9 +129,22 @@ class LocustWorker(
         }
     }
 
+    private fun loggerPayloadOf(vararg pairs: Pair<String, Any?>): Map<String, Any?> {
+        val map = mutableMapOf<String, Any?>()
+        if (pairs.isNotEmpty()) {
+            map.putAll(pairs)
+        }
+        map[NODE_ID_LOG_PARAM] = nodeId
+        map[STATE_LOG_PARAM] = workerState.get().lowerCase
+        return map
+    }
+
     private suspend fun checkForHeartbeatFromMasterTimeout(): Boolean {
         if (currentTimeMillis() - lastHeartbeatFromMasterTimeMillis > heartbeatFromMasterTimeoutMillis) {
-            logger.info { "Controller heartbeat timeout, state=${workerState.get()}" }
+            logger.atInfo {
+                message = "Controller heartbeat timeout"
+                payload = loggerPayloadOf()
+            }
             quitAndExit()
             return true
         }
@@ -132,16 +153,22 @@ class LocustWorker(
 
     suspend fun startup(): Unit =
         coroutineScope {
-            logger.info { "Starting Locust Worker" }
+            logger.atInfo {
+                message = "Starting Locust Worker"
+                payload = loggerPayloadOf()
+            }
 
             if (workerState.get() != NOT_READY) {
                 throw IllegalStateException("Unexpected state: ${workerState.get()}")
             }
 
             if (client.connect().not()) {
-                throw IllegalStateException("Unable to connect to Locust at $host:$port")
+                throw IllegalStateException("Unable to connect to Locust")
             }
-            logger.info { "Connected to Locust at $host:$port" }
+            logger.atInfo {
+                message = "Connected to Locust"
+                payload = loggerPayloadOf()
+            }
             lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
 
             val receiveMessageChannel = Channel<Message>(capacity = messageConsumerBufferSize)
@@ -158,18 +185,36 @@ class LocustWorker(
                         }
                     } catch (e: ZMQException) {
                         if (workerState.get() == SHUTDOWN) {
-                            logger.debug { "Receive Message consumer ZMQ socket closed" }
+                            logger.atDebug {
+                                message = "Receive Message consumer ZMQ socket closed"
+                                payload = loggerPayloadOf()
+                            }
                         } else {
-                            logger.warn(e) { "Receive Message consumer ZMQ error" }
+                            logger.atWarn {
+                                message = "Receive Message consumer ZMQ error"
+                                payload = loggerPayloadOf()
+                                cause = e
+                            }
                         }
                     } catch (e: CancellationException) {
                         if (workerState.get() == SHUTDOWN) {
-                            logger.debug { "Receive Message consumer closed" }
+                            logger.atDebug {
+                                message = "Receive Message consumer closed"
+                                payload = loggerPayloadOf()
+                            }
                         } else {
-                            logger.warn(e) { "Receive Message consumer cancelled error" }
+                            logger.atWarn {
+                                message = "Receive Message consumer cancelled error"
+                                payload = loggerPayloadOf()
+                                cause = e
+                            }
                         }
                     } catch (e: Exception) {
-                        logger.error(e) { "Receive Message consumer error" }
+                        logger.atError {
+                            message = "Receive Message consumer error"
+                            payload = loggerPayloadOf()
+                            cause = e
+                        }
                     }
                 }
 
@@ -177,24 +222,42 @@ class LocustWorker(
             sendMessageJob =
                 launch(context = controlContext) {
                     try {
-                        for (message in sendMessageChannel) {
+                        for (msg in sendMessageChannel) {
                             if (checkForHeartbeatFromMasterTimeout()) {
                                 return@launch
                             }
-                            if (client.sendMessageAsync(message).not()) {
-                                logger.warn { "Unable to send ZMQ message, type=${message.type}" }
+                            if (client.sendMessageAsync(msg).not()) {
+                                logger.atWarn {
+                                    message = "Unable to send ZMQ message"
+                                    payload = loggerPayloadOf(MESSAGE_TYPE_LOG_PARAM to msg.type.lowerCase)
+                                }
                             }
                         }
                     } catch (e: ZMQException) {
-                        logger.warn(e) { "Send Message producer ZMQ error" }
+                        logger.atWarn {
+                            message = "Send Message producer ZMQ error"
+                            payload = loggerPayloadOf()
+                            cause = e
+                        }
                     } catch (e: CancellationException) {
                         if (workerState.get() == SHUTDOWN) {
-                            logger.debug { "Send Message producer closed" }
+                            logger.atDebug {
+                                message = "Send Message producer closed"
+                                payload = loggerPayloadOf()
+                            }
                         } else {
-                            logger.warn(e) { "Send Message producer cancelled error" }
+                            logger.atWarn {
+                                message = "Send Message producer cancelled error"
+                                payload = loggerPayloadOf()
+                                cause = e
+                            }
                         }
                     } catch (e: Exception) {
-                        logger.error(e) { "Send Message producer error" }
+                        logger.atError {
+                            message = "Send Message producer error"
+                            payload = loggerPayloadOf()
+                            cause = e
+                        }
                     }
                 }
 
@@ -228,10 +291,16 @@ class LocustWorker(
                                         "current_memory_usage" to osBean.freeMemorySize,
                                     )
                                 sendMessageChannel.send(Message(HEARTBEAT, nodeId, data))
-
-                                logger.trace { "Sent heartbeat with state=$stateName" }
+                                logger.atTrace {
+                                    message = "Sent heartbeat"
+                                    payload = loggerPayloadOf(HEARTBEAT_STATE_LOG_PARAM to stateName)
+                                }
                             } catch (e: Exception) {
-                                logger.error(e) { "Error from heartbeat loop" }
+                                logger.atError {
+                                    message = "Error from heartbeat loop"
+                                    payload = loggerPayloadOf()
+                                    cause = e
+                                }
                             }
                         }
                     }
@@ -248,8 +317,10 @@ class LocustWorker(
                 if (receivedMessage.type != ACK) {
                     throw IllegalStateException("Expected ack, but got: ${receivedMessage.type}")
                 }
-                val workerIndex = receivedMessage.data!!["index"]
-                logger.info { "Received ack, worker-index=$workerIndex" }
+                logger.atInfo {
+                    message = "Ack message from controller"
+                    payload = loggerPayloadOf(INDEX_LOG_PARAM to receivedMessage.data!!["index"])
+                }
                 lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
             }
             if (workerState.compareAndSet(READY, WAITING).not()) {
@@ -280,48 +351,70 @@ class LocustWorker(
         receiveMessageChannel: ReceiveChannel<Message>,
     ) = coroutineScope {
         launch(context = controlContext) {
-            for (message in receiveMessageChannel) {
+            for (msg in receiveMessageChannel) {
                 lastHeartbeatFromMasterTimeMillis = currentTimeMillis()
-                when (message.type) {
+                when (msg.type) {
                     QUIT -> {
-                        logger.info { "Quit message from controller, state=${workerState.get()}" }
+                        logger.atInfo {
+                            message = "Quit message from controller"
+                            payload = loggerPayloadOf()
+                        }
                         quitAndExit(stats)
                     }
 
                     RECONNECT -> {
-                        logger.info { "Reconnect message from controller, state=${workerState.get()}" }
+                        logger.atInfo {
+                            message = "Reconnect message from controller"
+                            payload = loggerPayloadOf()
+                        }
                         if (client.connect(reconnect = true).not()) {
                             throw IllegalStateException("Unable to reconnect to Locust at $host:$port")
                         }
                     }
 
                     SPAWN -> {
-                        logger.info { "Spawn message from controller, state=${workerState.get()}" }
-                        spawn(stats, message, sendMessageChannel)
+                        logger.atInfo {
+                            message = "Spawn message from controller"
+                            payload = loggerPayloadOf()
+                        }
+                        spawn(stats, msg, sendMessageChannel)
                     }
 
-                    SPAWNING_COMPLETE -> {
-                        logger.info { "Spawning Complete message from controller, state=${workerState.get()}" }
-                    }
+                    SPAWNING_COMPLETE ->
+                        logger.atDebug {
+                            message = "Spawning Complete message from controller"
+                            payload = loggerPayloadOf()
+                        }
 
                     STOP -> {
-                        logger.info { "Stop message from controller, state=${workerState.get()}" }
+                        logger.atInfo {
+                            message = "Stop message from controller"
+                            payload = loggerPayloadOf()
+                        }
                         stop(sendMessageChannel)
                     }
 
                     ACK -> {
-                        val workerIndex = message.data!!["index"]
-                        logger.info { "Ack message from controller, worker-index=$workerIndex, state=${workerState.get()}" }
+                        logger.atInfo {
+                            message = "Ack message from controller"
+                            payload = loggerPayloadOf(INDEX_LOG_PARAM to msg.data!!["index"])
+                        }
                         if (workerState.compareAndSet(READY, WAITING).not()) {
                             throw IllegalStateException("Unexpected state: ${workerState.get()}")
                         }
                     }
 
-                    HEARTBEAT -> {
-                        logger.trace { "Heartbeat message from controller, state=${workerState.get()}" }
-                    }
+                    HEARTBEAT ->
+                        logger.atTrace {
+                            message = "Heartbeat message from controller"
+                            payload = loggerPayloadOf()
+                        }
 
-                    else -> logger.warn { "Unexpected message type received: ${message.type}" }
+                    else ->
+                        logger.atWarn {
+                            message = "Unexpected message type received"
+                            payload = loggerPayloadOf(MESSAGE_TYPE_LOG_PARAM to msg.type.lowerCase)
+                        }
                 }
             }
         }
@@ -329,7 +422,7 @@ class LocustWorker(
 
     private suspend fun spawn(
         stats: LocustStats,
-        message: Message,
+        msg: Message,
         sendMessageChannel: SendChannel<Message>,
     ) = coroutineScope {
         if (workerState.getAndSet(SPAWNING) == WAITING) {
@@ -339,7 +432,7 @@ class LocustWorker(
         sendMessageChannel.send(Message(LocustMessageType.SPAWNING, nodeId))
 
         @Suppress("UNCHECKED_CAST")
-        val userClassesCountMap = message.data!!["user_classes_count"] as Map<String, Int>
+        val userClassesCountMap = msg.data!!["user_classes_count"] as Map<String, Int>
         val numUsers: Int = userClassesCountMap.values.fold(0) { acc, next -> acc + next }
 
         // cleanup any empty task-sets (e.g., all failed to start)
@@ -354,11 +447,24 @@ class LocustWorker(
         val numUsersToDelete = if (numUsersDiff < 0) abs(numUsersDiff) else 0
 
         if (numUsersToCreate == 0 && numUsersToDelete == 0) {
-            logger.info { "Spawn resulted in no change in user-units" }
+            logger.atDebug {
+                message = "Spawn resulted in no change in user-units"
+                payload = loggerPayloadOf()
+            }
             return@coroutineScope
+        } else if (numUsersToCreate != 0) {
+            logger.atDebug {
+                message = "Spawn increasing user-units"
+                payload =
+                    loggerPayloadOf(INCREASE_USERS_LOG_PARAM to numUsersToCreate)
+            }
+        } else {
+            logger.atDebug {
+                message = "Spawn decreasing user-units"
+                payload =
+                    loggerPayloadOf(DECREASE_USERS_LOG_PARAM to numUsersToDelete)
+            }
         }
-
-        logger.info { "+$numUsersToCreate (-$numUsersToDelete) user-units" }
 
         for (userNum in 1..numUsersToDelete) {
             perUserTaskJobs.removeLast().forEach { if (it.value.isActive) it.value.cancel() }
@@ -377,10 +483,17 @@ class LocustWorker(
                             try {
                                 taskInstance.beforeExecuteLoop(taskContext)
                             } catch (e: CancellationException) {
-                                logger.info { "Task (${taskInstance.name()}) cancelled (beforeExecuteLoop)" }
+                                logger.atDebug {
+                                    message = "Task cancelled (beforeExecuteLoop)"
+                                    payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                }
                                 return@launch
                             } catch (e: Exception) {
-                                logger.error(e) { "Task (${taskInstance.name()}) beforeExecuteLoop exception caught" }
+                                logger.atError {
+                                    message = "Task beforeExecuteLoop exception caught"
+                                    payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                    cause = e
+                                }
                                 stats.failure(0, e.message ?: "", taskInstance.name(), "beforeExecuteLoop")
                                 return@launch
                             }
@@ -389,22 +502,39 @@ class LocustWorker(
                                     taskInstance.execute(stats, taskContext)
                                 }
                                 if (isActive.not()) {
-                                    logger.info { "Task (${taskInstance.name()}) cancelled (inactive)" }
+                                    logger.atDebug {
+                                        message = "Task cancelled (inactive)"
+                                        payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                    }
                                     return@launch
                                 }
                             } catch (e: CancellationException) {
-                                logger.info { "Task (${taskInstance.name()}) cancelled" }
+                                logger.atDebug {
+                                    message = "Task cancelled"
+                                    payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                }
                                 return@launch
                             } catch (e: Exception) {
-                                logger.error(e) { "Task (${taskInstance.name()}) execute exception caught" }
+                                logger.atError {
+                                    message = "Task execute exception caught"
+                                    payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                    cause = e
+                                }
                                 stats.failure(0, e.message ?: "", taskInstance.name(), "unknown")
                             } finally {
                                 try {
                                     taskInstance.afterExecuteLoop(taskContext)
                                 } catch (e: CancellationException) {
-                                    logger.info { "Task (${taskInstance.name()}) cancelled (afterExecuteLoop)" }
+                                    logger.atDebug {
+                                        message = "Task cancelled (afterExecuteLoop)"
+                                        payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                    }
                                 } catch (e: Exception) {
-                                    logger.warn(e) { "Task (${taskInstance.name()}) afterExecuteLoop exception caught" }
+                                    logger.atWarn {
+                                        message = "Task afterExecuteLoop exception caught"
+                                        payload = loggerPayloadOf(TASK_NAME_LOG_PARAM to taskInstance.name())
+                                        cause = e
+                                    }
                                 }
                             }
                         } finally {
@@ -440,7 +570,10 @@ class LocustWorker(
     fun shutdown() {
         if (workerState.get() != SHUTDOWN) {
             workerState.set(SHUTDOWN)
-            logger.info { "Shutting down Locust Worker" }
+            logger.atInfo {
+                message = "Shutting down Locust Worker"
+                payload = loggerPayloadOf()
+            }
             receiveMessageJob?.cancel()
             sendMessageJob?.cancel()
             taskContext.close()

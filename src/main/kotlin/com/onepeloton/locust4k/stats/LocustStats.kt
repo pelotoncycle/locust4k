@@ -4,6 +4,7 @@ import com.onepeloton.locust4k.LocustTaskReporter
 import com.onepeloton.locust4k.LocustWorkerState
 import com.onepeloton.locust4k.LocustWorkerState.SHUTDOWN
 import com.onepeloton.locust4k.LocustWorkerState.STOPPED
+import com.onepeloton.locust4k.logging.LoggingConstants.Companion.NODE_ID_LOG_PARAM
 import com.onepeloton.locust4k.messages.LocustMessageType.STATS
 import com.onepeloton.locust4k.messages.Message
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -29,9 +30,11 @@ class LocustStats(
     private val workerState: AtomicReference<LocustWorkerState>,
     private val controlContext: CoroutineContext,
     private val sendMessageChannel: SendChannel<Message>,
-    private val successOrFailureBufferSize: Int = 8192,
+    successOrFailureBufferSize: Int = 8192,
 ) : LocustTaskReporter {
     private val logger = KotlinLogging.logger {}
+
+    private val loggerPayload: Map<String, Any?> = mapOf(NODE_ID_LOG_PARAM to nodeId)
 
     private val successOrFailureChannel = Channel<SuccessOrFailure>(capacity = successOrFailureBufferSize)
 
@@ -65,25 +68,45 @@ class LocustStats(
                         while (isActive) {
                             delay(statsReportMillis)
                             sendReport()
-                            logger.trace { "Stats reporter iteration" }
+                            logger.atTrace {
+                                message = "Stats reporter iteration"
+                                payload = loggerPayload
+                            }
                         }
                         if (workerState.get() == STOPPED) {
                             // send last stats message
                             sendReport()
-                            logger.debug { "Stats reporter stopped (inactive)" }
+                            logger.atDebug {
+                                message = "Stats reporter stopped (inactive)"
+                                payload = loggerPayload
+                            }
                         }
                     } catch (e: CancellationException) {
                         if (workerState.get() == STOPPED) {
                             // send last stats message
                             sendReport()
-                            logger.debug { "Stats reporter stopped" }
+                            logger.atDebug {
+                                message = "Stats reporter stopped"
+                                payload = loggerPayload
+                            }
                         } else if (workerState.get() == SHUTDOWN) {
-                            logger.debug { "Stats reporter closed" }
+                            logger.atDebug {
+                                message = "Stats reporter closed"
+                                payload = loggerPayload
+                            }
                         } else {
-                            logger.warn(e) { "Stats reporter cancelled error" }
+                            logger.atWarn {
+                                message = "Stats reporter cancelled error"
+                                payload = loggerPayload
+                                cause = e
+                            }
                         }
                     } catch (e: Exception) {
-                        logger.error(e) { "Stats reporter error" }
+                        logger.atError {
+                            message = "Stats reporter error"
+                            payload = loggerPayload
+                            cause = e
+                        }
                     }
                 }
             statsConsumerJob =
@@ -91,18 +114,35 @@ class LocustStats(
                     try {
                         for (item in successOrFailureChannel) {
                             consume(item)
-                            logger.trace { "Consumed stats message" }
+                            logger.atTrace {
+                                message = "Consumed stats message"
+                                payload = loggerPayload
+                            }
                         }
                     } catch (e: CancellationException) {
                         if (workerState.get() == STOPPED) {
-                            logger.debug { "Stats consumer stopped" }
+                            logger.atDebug {
+                                message = "Stats consumer stopped"
+                                payload = loggerPayload
+                            }
                         } else if (workerState.get() == SHUTDOWN) {
-                            logger.debug { "Stats consumer closed" }
+                            logger.atDebug {
+                                message = "Stats consumer closed"
+                                payload = loggerPayload
+                            }
                         } else {
-                            logger.warn(e) { "Stats consumer cancelled error" }
+                            logger.atWarn {
+                                message = "Stats consumer cancelled error"
+                                payload = loggerPayload
+                                cause = e
+                            }
                         }
                     } catch (e: Exception) {
-                        logger.error(e) { "Stats consumer error" }
+                        logger.atError {
+                            message = "Stats consumer error"
+                            payload = loggerPayload
+                            cause = e
+                        }
                     }
                 }
         }
@@ -123,11 +163,16 @@ class LocustStats(
         successOrFailureChannel.trySend(item)
             .onFailure {
                 if (it == null) {
-                    logger.warn {
-                        "Failed to record success result. May have reached successOrFailureBufferSize."
+                    logger.atWarn {
+                        message = "Failed to record success result. May have reached successOrFailureBufferSize."
+                        payload = loggerPayload
                     }
                 } else {
-                    logger.warn(it) { "Failed to record success result" }
+                    logger.atWarn {
+                        message = "Failed to record success result"
+                        payload = loggerPayload
+                        cause = it
+                    }
                 }
             }
     }
@@ -151,9 +196,16 @@ class LocustStats(
         successOrFailureChannel.trySend(item)
             .onFailure {
                 if (it == null) {
-                    logger.warn { "Failed to record failure result. May have reached successOrFailureBufferSize." }
+                    logger.atWarn {
+                        message = "Failed to record failure result. May have reached successOrFailureBufferSize."
+                        payload = loggerPayload
+                    }
                 } else {
-                    logger.warn(it) { "Failed to record failure result" }
+                    logger.atWarn {
+                        message = "Failed to record failure result"
+                        payload = loggerPayload
+                        cause = it
+                    }
                 }
             }
     }
@@ -211,7 +263,10 @@ class LocustStats(
         total.reset()
         entries.clear()
         errors.clear()
-        logger.info { "Stats reset" }
+        logger.atDebug {
+            message = "Stats reset"
+            payload = loggerPayload
+        }
     }
 }
 
