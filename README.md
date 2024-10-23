@@ -10,7 +10,7 @@ Inspired by [locust4j](https://github.com/myzhan/locust4j).
 Import as a Maven or Gradle dependency:
 
 ```text
-implementation("com.onepeloton.locust4k:locust4k:1.0.0")
+implementation("com.onepeloton.locust4k:locust4k:1.1.0")
 ```
 
 Create one or more
