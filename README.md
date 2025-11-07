@@ -65,6 +65,7 @@ Visit http://localhost:8089/ to start the load test.
 ## Tests
 
 We use Docker and [Testcontainers](https://java.testcontainers.org) to test interoperability with Locust master.
+Note that `docker` must be available on the command-line (see [shell completions](https://docs.docker.com/engine/cli/completion/)).
 
 ```shell
 # build ExampleApp Docker image
