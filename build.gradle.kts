@@ -1,6 +1,5 @@
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinJvm
-import com.vanniktech.maven.publish.SonatypeHost
 import groovy.util.Node
 import groovy.util.NodeList
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -86,7 +85,7 @@ mavenPublishing {
             sourcesJar = true,
         ),
     )
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral()
     signAllPublications()
     coordinates(groupId = group as String, artifactId = rootProject.name, version = version as String)
     pom {
@@ -183,11 +182,16 @@ tasks.jar {
     }
 }
 
+interface InjectedExecOps {
+    @get:Inject val execOps: ExecOperations
+}
+
 tasks.register("runExample") {
     description = "Run an example app by name."
     val appName = project.providers.gradleProperty("name")
+    val injected = project.objects.newInstance<InjectedExecOps>()
     if (appName.isPresent) {
-        javaexec {
+        injected.execOps.javaexec {
             mainClass.set("com.onepeloton.locust4k.examples.${appName.get()}")
             classpath = sourceSets["main"].runtimeClasspath
         }
